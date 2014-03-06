@@ -220,53 +220,6 @@ fi.fmi.metoclient.ui.animator.Factory = (function() {
         };
 
         /**
-         * @return {Array} Array of capability objects from the configuration object.
-         *                 Array is always given even if it may be empty.
-         */
-        function getConfigCapabilities() {
-            var capabilities = [];
-            if (_config && _config.layers && _config.layers.length) {
-                for (var i = 0; i < _config.layers.length; ++i) {
-                    var layer = _config.layers[i];
-                    if (layer) {
-                        var capability = layer.capabilities;
-                        if (capability) {
-                            capabilities.push(capability);
-                        }
-                    }
-                }
-            }
-            return capabilities;
-        }
-
-        /**
-         * @return {Array} Array of unique capability URL strings from the configuration object.
-         *                 Array is always given even if it may be empty.
-         */
-        function getConfigCapabilitiesUrls() {
-            var urls = [];
-            var capabilities = getConfigCapabilities();
-            for (var i = 0; i < capabilities.length; ++i) {
-                var capability = capabilities[i];
-                if (capability && capability.url) {
-                    // Check if an exactly same URL already exists.
-                    var urlExists = false;
-                    for (var j = 0; j < urls.length; ++j) {
-                        if (capability.url === urls[j]) {
-                            urlExists = true;
-                            break;
-                        }
-                    }
-                    if (!urlExists) {
-                        // Add new URL.
-                        urls.push(capability.url);
-                    }
-                }
-            }
-            return urls;
-        }
-
-        /**
          * @param {String} layer Layer identifier.
          *                       Operation is ignored if {undefined}, {null} or {empty}.
          * @param {String} url URL used for capability request.
@@ -640,7 +593,8 @@ fi.fmi.metoclient.ui.animator.Factory = (function() {
             // handle synchronous exceptions as if asynchronous operation would
             // have finished and one fail does not stop the whole flow if other
             // asynchronous operations are going-on or about to be started.
-            var capabilitiesUrls = getConfigCapabilitiesUrls();
+            var capabilities = _.filter(_.map(_config.layers, "capabilities"));
+            var capabilitiesUrls = _.uniq(_.map(capabilities, "url"));
             _asyncCounter = capabilitiesUrls.length;
             if (capabilitiesUrls.length) {
                 for (var i = 0; i < capabilitiesUrls.length; ++i) {
