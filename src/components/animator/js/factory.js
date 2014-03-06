@@ -156,11 +156,11 @@ fi.fmi.metoclient.ui.animator.Factory = (function() {
         var constructorWrapper = function(constructor, args) {
             var wrapper;
             if (constructor) {
-                var params = [constructor];
+                var params = [constructor, constructor];
                 if (args) {
                     params = params.concat(args);
                 }
-                wrapper = _.bind(constructor, constructor, params);
+                wrapper = _.bind.apply(_, params);
             }
             return wrapper;
         };
