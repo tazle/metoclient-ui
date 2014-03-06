@@ -1,5 +1,10 @@
 "use strict";
 
+// Requires lodash
+if ("undefined" === typeof _ || !_) {
+    throw "ERROR: Lodash is required for fi.fmi.metoclient.ui.animator.Animator!";
+}
+
 // Requires OpenLayers
 if ( typeof OpenLayers === "undefined" || !OpenLayers) {
     throw "ERROR: OpenLayers is required for fi.fmi.metoclient.ui.animator.Factory!";
@@ -43,41 +48,6 @@ fi.fmi.metoclient.ui.animator.Factory = (function() {
     // for the sub-layer.
     var CAPABILITY_TIME_JOIN = "join";
 
-    /**
-     * @private
-     *
-     * Function to provide {bind} if an older browser does not support it natively.
-     *
-     * This will provide IE8+ support.
-     * See, https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Function/bind
-     *
-     * This function is called during the construction of this singleton instance to make sure
-     * function is available.
-     */
-    (function() {
-        if (!Function.prototype.bind) {
-            Function.prototype.bind = function(oThis) {
-                if ("function" !== typeof this) {
-                    // closest thing possible to the ECMAScript 5 internal IsCallable function
-                    throw "Function.prototype.bind - what is trying to be bound is not callable";
-                }
-
-                var aArgs = Array.prototype.slice.call(arguments, 1);
-                var fToBind = this;
-                var fNOP = function() {
-                };
-                var fBound = function() {
-                    return fToBind.apply(this instanceof fNOP && oThis ? this : oThis, aArgs.concat(Array.prototype.slice.call(arguments)));
-                };
-
-                fNOP.prototype = this.prototype;
-                var FNOP = fNOP;
-                fBound.prototype = new FNOP();
-
-                return fBound;
-            };
-        }
-    })();
 
     /**
      * @private
@@ -190,7 +160,7 @@ fi.fmi.metoclient.ui.animator.Factory = (function() {
                 if (args) {
                     params = params.concat(args);
                 }
-                wrapper = constructor.bind.apply(constructor, params);
+                wrapper = _.bind(constructor, constructor, params);
             }
             return wrapper;
         };
