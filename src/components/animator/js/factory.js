@@ -96,6 +96,70 @@ fi.fmi.metoclient.ui.animator.Factory = (function() {
     }
 
     /**
+     * Do GetCapabilities request to given URLs. Call callback when complete.
+     *
+     * @param {Array} urls Array of Strings containing URLs to fetch. Must not be undefined or null. May be empty.
+     *
+     * @param {Function} _onComplete Callback, called when all requests have been completed.
+     *                               Signature: _onComplete(capabilities, errors).
+     *
+     *                               capabilities is an array of objects of form {
+     *                                   url: url,
+     *                                   capabilities: WmsCapabilities.getData result
+     *                               }.
+     *
+     *                               Undefined results are not included.
+     *
+     *                               errors is an array of strings that describe any errors that occurred.
+     */
+    function fetchCapabilities(urls, _onComplete) {
+        var onComplete = _.once(_onComplete);
+        var results = {
+            nComplete: 0,
+            capabilities: [],
+            errors: []
+        };
+
+        var nRequests = urls.length;
+
+        try {
+            _.each(urls, function(url) {
+                // Start asynchronous operation.
+                fi.fmi.metoclient.ui.animator.WmsCapabilities.getData({
+                    url: url,
+                    callback: function(capabilities, errors) {
+                        if (capabilities !== undefined) {
+                            results.capabilities.push({url: url, capabilities: capabilities});
+                        }
+                        _.each(errors, function(error) {
+                            results.errors.push(error);
+                        });
+                        results.nComplete += 1;
+
+                        if (results.nComplete === nRequests) {
+                            onComplete(results.capabilities, results.errors);
+                        }
+                    }
+                });
+            });
+        } catch(e) {
+            // Asynchronize error
+            results.errors.push("ERROR: Error while starting GetCapabilities requests");
+            setTimeout(function() {
+                onComplete(results.capabilities, results.errors);
+            }, 0);
+        }
+
+        if (results.nComplete === nRequests) {
+            // When nRequests == 0
+            setTimeout(function() {
+                onComplete(results.capabilities, results.errors);
+            }, 0);
+        }
+
+    }
+
+    /**
      * Constructor for new instance.
      * This function provides the public API and also contains private instance specific functionality.
      *
@@ -112,8 +176,6 @@ fi.fmi.metoclient.ui.animator.Factory = (function() {
 
         // Error objects of asynchronous operations.
         var _errors = [];
-        // Async counter for on-going asynchronous operations.
-        var _asyncCounter = 0;
 
         // Capabilities data for configurations.
         // Capabilities objects wrap requested capabilities and
@@ -499,74 +561,6 @@ fi.fmi.metoclient.ui.animator.Factory = (function() {
         }
 
         /**
-         * Initializes capabilities with the given {capabilities} object.
-         *
-         * Callback is used to inform that flow has finished.
-         *
-         * @param {Function} callback See {initCapabilities} function for callback description.
-         * @param {Object} capabilities Capabilities wrapper object. May be {undefined} or {null}.
-         * @param {Array} errors See {init} function for callback {errors} description.
-         *                       May be {undefined} or {null}.
-         */
-        function capabilitiesCallback(callback, capabilities, errors) {
-            if (_asyncCounter > 0) {
-                // Decrease the counter because an asynchronous operation has finished.
-                --_asyncCounter;
-            }
-
-            if (capabilities) {
-                _capabilitiesContainer.push(capabilities);
-            }
-            if (errors) {
-                // Update error and capabilities content.
-                _errors.push.apply(_errors, errors);
-            }
-
-            // Check if all asynchronous operations have finished.
-            if (0 === _asyncCounter) {
-                // Just to be sure that if for some reason we come here twice,
-                // callback is only called the first time.
-                _asyncCounter = -1;
-
-                // Check and fine tune configuration before final callback
-                // to inform that capabilites are handled.
-                checkConfiguration();
-
-                // All asynchronous operations have finished.
-                // Finish the flow by calling the callback.
-                handleCallback(callback);
-            }
-        }
-
-        /**
-         * Start asynchronous operation to get capabilitis data.
-         *
-         * @param {Function} callback See {initCapabilities} function for callback description.
-         * @param {String} url URL used for capability request.
-         *                     May not be {undefined}, {null} or empty.
-         */
-        function getCapabilitiesData(callback, url) {
-            // Callback for capabilities operations.
-            var optionsCallback = function(capabilities, errors) {
-                // Wrap capabilities related information into object.
-                var capabilitiesWrapper = {
-                    url : url,
-                    capabilities : capabilities
-                };
-                capabilitiesCallback(callback, capabilitiesWrapper, errors);
-            };
-
-            // Options to get capabilities data.
-            var options = {
-                url : url,
-                callback : optionsCallback
-            };
-
-            // Start asynchronous operation.
-            fi.fmi.metoclient.ui.animator.WmsCapabilities.getData(options);
-        }
-
-        /**
          * Request capabilities information according to the configurations of this factory.
          *
          * Asynchronous function.
@@ -574,45 +568,6 @@ fi.fmi.metoclient.ui.animator.Factory = (function() {
          * @param {Function} callback See {init} function for callback description.
          */
         function initCapabilities(callback) {
-            // Reset previous capabilities state.
-            _capabilitiesContainer = [];
-
-            // Exception handler function that is used inside the loop.
-            var handleExceptionInLoop = function(e) {
-                // An error has occurred in synchronous part before starting asynchronous operation.
-                // Handle the case as if asynchronous operation would have finished. Then, flow
-                // continues if another asynchronous operation is going on or about to be started.
-                // Otherwise, flow ends normally.
-                setTimeout(function() {
-                    capabilitiesCallback(callback, undefined, ["ERROR: Error init capabilities: " + e.toString()]);
-                }, 0);
-            };
-
-            // There may be multiple asynchronous operations started.
-            // Counter is initialized with the total count. Then, catch can
-            // handle synchronous exceptions as if asynchronous operation would
-            // have finished and one fail does not stop the whole flow if other
-            // asynchronous operations are going-on or about to be started.
-            var capabilities = _.filter(_.map(_config.layers, "capabilities"));
-            var capabilitiesUrls = _.uniq(_.map(capabilities, "url"));
-            _asyncCounter = capabilitiesUrls.length;
-            if (capabilitiesUrls.length) {
-                for (var i = 0; i < capabilitiesUrls.length; ++i) {
-                    try {
-                        getCapabilitiesData(callback, capabilitiesUrls[i]);
-
-                    } catch(e) {
-                        handleExceptionInLoop(e);
-                    }
-                }
-
-            } else {
-                // No capabilities to load.
-                // Finish flow asynchronously.
-                setTimeout(function() {
-                    capabilitiesCallback(callback, undefined, []);
-                }, 0);
-            }
         }
 
         /**
@@ -968,12 +923,7 @@ fi.fmi.metoclient.ui.animator.Factory = (function() {
          * See API for function description.
          */
         function getCapabilities() {
-            var capabilities = [];
-            // Get capabilities objects from the container.
-            for (var i = 0; i < _capabilitiesContainer.length; ++i) {
-                capabilities.push(_capabilitiesContainer[i].capabilities);
-            }
-            return capabilities;
+            var capabilities = _.map(_capabilitiesContainer, "capabilities");
         }
 
         /**
@@ -988,12 +938,32 @@ fi.fmi.metoclient.ui.animator.Factory = (function() {
                 // Throw exception directly because callback is not provided.
                 throw errorStr;
             }
-            try {
-                // Reset asynchronous operation variables before starting new flow.
-                _asyncCounter = 0;
-                _errors = [];
-                initCapabilities(callback);
 
+
+            try {
+                // There may be multiple asynchronous operations started.
+                // Counter is initialized with the total count. Then, catch can
+                // handle synchronous exceptions as if asynchronous operation would
+                // have finished and one fail does not stop the whole flow if other
+                // asynchronous operations are going-on or about to be started.
+                var capabilities = _.filter(_.map(_config.layers, "capabilities"));
+                var capabilitiesUrls = _.uniq(_.map(capabilities, "url"));
+
+                fetchCapabilities(capabilitiesUrls, function(capabilities, errors) {
+                    _capabilitiesContainer = capabilities;
+                    if (errors) {
+                        // Update error and capabilities content.
+                        _.each(errors, _errors.push);
+                    }
+
+                    // Check and fine tune configuration before final callback
+                    // to inform that capabilites are handled.
+                    checkConfiguration();
+
+                    // All asynchronous operations have finished.
+                    // Finish the flow by calling the callback.
+                    handleCallback(callback);
+                });
             } catch(e) {
                 // An error occurred in synchronous flow.
                 // But, inform observer about the error asynchronously.
