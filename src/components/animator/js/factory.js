@@ -174,9 +174,6 @@ fi.fmi.metoclient.ui.animator.Factory = (function() {
         // Map and layer configuration object.
         var _config = configuration;
 
-        // Error objects of asynchronous operations.
-        var _errors = [];
-
         // Capabilities data for configurations.
         // Capabilities objects wrap requested capabilities and
         // other capability related information. Capability objects
@@ -259,16 +256,18 @@ fi.fmi.metoclient.ui.animator.Factory = (function() {
         };
 
         /**
-         * Asynchronously handles the callback and possible error situations there.
+         * Handle post-initialization callback and possible error situations there.
          *
          * @param {function(data, errors)} callback Callback function that is called.
          *                                          Operation is ignored if {undefined} or {null}.
+         *
+         * @param {Array<String>} errors Errors produced during ini
          */
-        var handleCallback = function(callback) {
+        var handleCallback = function(callback, errors) {
             if (callback) {
                 setTimeout(function() {
                     try {
-                        callback(_me, _errors);
+                        callback(_me, errors);
 
                     } catch(e) {
                         // Ignore errors that may occur in the callback.
@@ -523,41 +522,32 @@ fi.fmi.metoclient.ui.animator.Factory = (function() {
          * Configuration layer times are updated according to capabilities.
          */
         function checkConfiguration() {
-            try {
-                if (_capabilitiesContainer.length && _config && _config.layers) {
-                    for (var i = 0; i < _config.layers.length; ++i) {
-                        var layer = _config.layers[i];
-                        if (layer && layer.args) {
-                            // Layers are created by providing arguments list in configuration.
-                            // Check from the given arguments if any of them contains animation configuration.
-                            for (var j = 0; j < layer.args.length; ++j) {
-                                var arg = layer.args[j];
-                                if (arg) {
-                                    var animation = arg.animation;
-                                    if (animation) {
-                                        checkConfigurationAnimation(animation, layer.capabilities);
-                                        // Use the first animation that is found from the arguments.
-                                        // Therefore, no need to browse other arguments through any more.
-                                        break;
-                                    }
+            if (_capabilitiesContainer.length && _config && _config.layers) {
+                for (var i = 0; i < _config.layers.length; ++i) {
+                    var layer = _config.layers[i];
+                    if (layer && layer.args) {
+                        // Layers are created by providing arguments list in configuration.
+                        // Check from the given arguments if any of them contains animation configuration.
+                        for (var j = 0; j < layer.args.length; ++j) {
+                            var arg = layer.args[j];
+                            if (arg) {
+                                var animation = arg.animation;
+                                if (animation) {
+                                    checkConfigurationAnimation(animation, layer.capabilities);
+                                    // Use the first animation that is found from the arguments.
+                                    // Therefore, no need to browse other arguments through any more.
+                                    break;
                                 }
                             }
                         }
                     }
                 }
-
-                // Check and set if configuration defines forecast begin dates.
-                // Notice, this is called after checkConfiguration has checked
-                // the animation layer time values.
-                checkForecastBeginDate();
-
-            } catch(e) {
-                var errorStr = "ERROR: Configuration check failed: " + e.toString();
-                if ("undefined" !== typeof console && console) {
-                    console.error(errorStr);
-                }
-                _errors.push(errorStr);
             }
+
+            // Check and set if configuration defines forecast begin dates.
+            // Notice, this is called after checkConfiguration has checked
+            // the animation layer time values.
+            checkForecastBeginDate();
         }
 
         /**
@@ -951,18 +941,18 @@ fi.fmi.metoclient.ui.animator.Factory = (function() {
 
                 fetchCapabilities(capabilitiesUrls, function(capabilities, errors) {
                     _capabilitiesContainer = capabilities;
-                    if (errors) {
-                        // Update error and capabilities content.
-                        _.each(errors, _errors.push);
-                    }
 
                     // Check and fine tune configuration before final callback
                     // to inform that capabilites are handled.
-                    checkConfiguration();
+                    try {
+                        checkConfiguration();
+                    } catch (e) {
+                        handleCallback(callback, [e.toString()]);
+                    }
 
                     // All asynchronous operations have finished.
                     // Finish the flow by calling the callback.
-                    handleCallback(callback);
+                    handleCallback(callback, errors);
                 });
             } catch(e) {
                 // An error occurred in synchronous flow.
@@ -973,8 +963,7 @@ fi.fmi.metoclient.ui.animator.Factory = (function() {
                 if ("undefined" !== typeof console && console) {
                     console.error("ERROR: Factory init error: " + error);
                 }
-                _errors.push(error);
-                handleCallback(callback);
+                handleCallback(callback, [error]);
             }
         }
 
