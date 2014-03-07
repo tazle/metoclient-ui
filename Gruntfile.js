@@ -182,7 +182,8 @@ module.exports = function(grunt) {
         // Detect errors and potential problems in JavaScript code and enforce coding conventions.
         //----------------------------------------------------------------------------------------
         jshint : {
-            all : ['src/**/*.js', 'dist/components/animator/js/animator-<%= pkg.version %>.js'],
+            src : ['src/**/*.js'],
+            dist: ['dist/components/animator/js/animator-<%= pkg.version %>.js'],
             options : {
                 "curly" : true,
                 "eqeqeq" : true,
@@ -278,6 +279,6 @@ module.exports = function(grunt) {
     // Default task(s).
     // As a default, only local data is used for tests. Then, tests can be run also without connection for server data.
     // Notice, test can be run separately also for server data.
-    grunt.registerTask('default', ['build', 'jshint', 'csslint']);
+    grunt.registerTask('default', ['jshint:src', 'build', 'jshint:dist', 'csslint']);
 
 };
