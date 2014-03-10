@@ -1220,13 +1220,20 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
                     // Start asynchronous initialization.
                     // Also, show progressbar during asynchronous operation.
                     jQuery(".animatorLoadProgressbar").show();
-                    _config.init(function(factory, errors) {
-                        // Asynchronous initialization is over.
-                        // Hide the progressbar.
+
+                    console.log("Fetching data");
+                    fi.fmi.metoclient.ui.animator.WmsCapabilities.getDataMultiple(_config.getCapabilitiesUrls(), function(capabilities, errors) {
+                        console.log("Got data");
+                        if (!errors.length) {
+                            // Asynchronous initialization is successful
+                            // Hide the progressbar.
+                            _config.init(capabilities);
+                        } else {
+                            // TODO Report errors
+                        }
                         jQuery(".animatorLoadProgressbar").hide();
                         configInitCallback(options, errors);
                     });
-
                 } catch(e) {
                     // An error occurred in synchronous flow.
                     // But, inform observer about the error asynchronously.

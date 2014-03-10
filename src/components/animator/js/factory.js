@@ -96,70 +96,6 @@ fi.fmi.metoclient.ui.animator.Factory = (function() {
     }
 
     /**
-     * Do GetCapabilities request to given URLs. Call callback when complete.
-     *
-     * @param {Array} urls Array of Strings containing URLs to fetch. Must not be undefined or null. May be empty.
-     *
-     * @param {Function} _onComplete Callback, called when all requests have been completed.
-     *                               Signature: _onComplete(capabilities, errors).
-     *
-     *                               capabilities is an array of objects of form {
-     *                                   url: url,
-     *                                   capabilities: WmsCapabilities.getData result
-     *                               }.
-     *
-     *                               Undefined results are not included.
-     *
-     *                               errors is an array of strings that describe any errors that occurred.
-     */
-    function fetchCapabilities(urls, _onComplete) {
-        var onComplete = _.once(_onComplete);
-        var results = {
-            nComplete: 0,
-            capabilities: [],
-            errors: []
-        };
-
-        var nRequests = urls.length;
-
-        try {
-            _.each(urls, function(url) {
-                // Start asynchronous operation.
-                fi.fmi.metoclient.ui.animator.WmsCapabilities.getData({
-                    url: url,
-                    callback: function(capabilities, errors) {
-                        if (capabilities !== undefined) {
-                            results.capabilities.push({url: url, capabilities: capabilities});
-                        }
-                        _.each(errors, function(error) {
-                            results.errors.push(error);
-                        });
-                        results.nComplete += 1;
-
-                        if (results.nComplete === nRequests) {
-                            onComplete(results.capabilities, results.errors);
-                        }
-                    }
-                });
-            });
-        } catch(e) {
-            // Asynchronize error
-            results.errors.push("ERROR: Error while starting GetCapabilities requests");
-            setTimeout(function() {
-                onComplete(results.capabilities, results.errors);
-            }, 0);
-        }
-
-        if (results.nComplete === nRequests) {
-            // When nRequests == 0
-            setTimeout(function() {
-                onComplete(results.capabilities, results.errors);
-            }, 0);
-        }
-
-    }
-
-    /**
      * Constructor for new instance.
      * This function provides the public API and also contains private instance specific functionality.
      *
@@ -551,16 +487,6 @@ fi.fmi.metoclient.ui.animator.Factory = (function() {
         }
 
         /**
-         * Request capabilities information according to the configurations of this factory.
-         *
-         * Asynchronous function.
-         *
-         * @param {Function} callback See {init} function for callback description.
-         */
-        function initCapabilities(callback) {
-        }
-
-        /**
          * Check layer configurations through and find the greatest value for resolution if any.
          *
          * @return {Integer} Resolution value.
@@ -916,55 +842,22 @@ fi.fmi.metoclient.ui.animator.Factory = (function() {
             var capabilities = _.map(_capabilitiesContainer, "capabilities");
         }
 
+        function getCapabilitiesUrls() {
+            // There may be multiple asynchronous operations started.
+            // Counter is initialized with the total count. Then, catch can
+            // handle synchronous exceptions as if asynchronous operation would
+            // have finished and one fail does not stop the whole flow if other
+            // asynchronous operations are going-on or about to be started.
+            var capabilities = _.filter(_.map(_config.layers, "capabilities"));
+            return _.uniq(_.map(capabilities, "url"));
+        }
+
         /**
          * See API for function description.
          */
-        function init(callback) {
-            if (!callback) {
-                var errorStr = "ERROR: Factory init callback is mandatory!";
-                if ("undefined" !== typeof console && console) {
-                    console.error(errorStr);
-                }
-                // Throw exception directly because callback is not provided.
-                throw errorStr;
-            }
-
-
-            try {
-                // There may be multiple asynchronous operations started.
-                // Counter is initialized with the total count. Then, catch can
-                // handle synchronous exceptions as if asynchronous operation would
-                // have finished and one fail does not stop the whole flow if other
-                // asynchronous operations are going-on or about to be started.
-                var capabilities = _.filter(_.map(_config.layers, "capabilities"));
-                var capabilitiesUrls = _.uniq(_.map(capabilities, "url"));
-
-                fetchCapabilities(capabilitiesUrls, function(capabilities, errors) {
-                    _capabilitiesContainer = capabilities;
-
-                    // Check and fine tune configuration before final callback
-                    // to inform that capabilites are handled.
-                    try {
-                        checkConfiguration();
-                    } catch (e) {
-                        handleCallback(callback, [e.toString()]);
-                    }
-
-                    // All asynchronous operations have finished.
-                    // Finish the flow by calling the callback.
-                    handleCallback(callback, errors);
-                });
-            } catch(e) {
-                // An error occurred in synchronous flow.
-                // But, inform observer about the error asynchronously.
-                // Then, flow progresses similarly through API in both
-                // error and success cases.
-                var error = e.toString();
-                if ("undefined" !== typeof console && console) {
-                    console.error("ERROR: Factory init error: " + error);
-                }
-                handleCallback(callback, [error]);
-            }
+        function init(capabilities) {
+            _capabilitiesContainer = capabilities;
+            checkConfiguration();
         }
 
         // Public config API.
@@ -992,6 +885,12 @@ fi.fmi.metoclient.ui.animator.Factory = (function() {
          *                 Array is always provided even if it may be empty.
          */
         this.getCapabilities = getCapabilities;
+
+        /**
+         * @return {Array} Array of capabilities URLs that should be loaded before initializing the configuration
+         *                 Array is always provided even if it may be empty.
+         */
+        this.getCapabilitiesUrls = getCapabilitiesUrls;
 
         /**
          * @return {OpenLayers.Map} Map for OpenLayers.

@@ -24,6 +24,11 @@
 // Strict mode for whole file.
 "use strict";
 
+// Requires lo-dash
+if ("undefined" === typeof _ || !_) {
+    throw "ERROR: OpenLayers is required for fi.fmi.metoclient.ui.animator.WmsCapabilities!";
+}
+
 // Requires OpenLayers
 if ("undefined" === typeof OpenLayers || !OpenLayers) {
     throw "ERROR: OpenLayers is required for fi.fmi.metoclient.ui.animator.WmsCapabilities!";
@@ -284,6 +289,56 @@ fi.fmi.metoclient.ui.animator.WmsCapabilities = (function() {
     }
 
     /**
+     * See API for function description.
+     */
+    function getDataMultiple(urls, _onComplete, params) {
+        var onComplete = _.once(_onComplete);
+        var results = {
+            nComplete: 0,
+            capabilities: [],
+            errors: []
+        };
+
+        var nRequests = urls.length;
+
+        try {
+            _.each(urls, function(url) {
+                // Start asynchronous operation.
+                fi.fmi.metoclient.ui.animator.WmsCapabilities.getData({
+                    url: url,
+                    callback: function(capabilities, errors) {
+                        if (capabilities !== undefined) {
+                            results.capabilities.push({url: url, capabilities: capabilities});
+                        }
+                        _.each(errors, function(error) {
+                            results.errors.push(error);
+                        });
+                        results.nComplete += 1;
+
+                        if (results.nComplete === nRequests) {
+                            onComplete(results.capabilities, results.errors);
+                        }
+                    },
+                    params: params
+                });
+            });
+        } catch(e) {
+            // Asynchronize error
+            results.errors.push("ERROR: Error while starting GetCapabilities requests");
+            setTimeout(function() {
+                onComplete(results.capabilities, results.errors);
+            }, 0);
+        }
+
+        if (results.nComplete === nRequests) {
+            // When nRequests == 0
+            setTimeout(function() {
+                onComplete(results.capabilities, results.errors);
+            }, 0);
+        }
+    }
+
+    /**
      * ============================
      * Public API is returned here.
      * ============================
@@ -336,6 +391,27 @@ fi.fmi.metoclient.ui.animator.WmsCapabilities = (function() {
          *     }
          */
         getData : getData,
+
+        /**
+         * Do GetCapabilities request to given URLs. Call callback when complete.
+         *
+         * @param {Array} urls Array of Strings containing URLs to fetch. Must not be undefined or null. May be empty.
+         *
+         *
+         * @param {Function} _onComplete Callback, called when all requests have been completed.
+         *                               Signature: _onComplete(capabilities, errors).
+         *
+         *                               capabilities is an array of objects of form {
+         *                                   url: url,
+         *                                   capabilities: WmsCapabilities.getData result
+         *                               }.
+         *
+         *                               Undefined results are not included.
+         *
+         *                               errors is an array of strings that describe any errors that occurred.
+         * @param {Array} params Same as options.params of getData
+         */
+        getDataMultiple : getDataMultiple,
 
         /**
          * Get URL that is used for capabilities request.
