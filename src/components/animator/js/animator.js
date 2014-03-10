@@ -53,7 +53,7 @@ if ("undefined" === typeof fi.fmi.metoclient.ui.animator.Controller || !fi.fmi.m
  *     // Callback is mandatory if getConfig function needs to be used.
  *     callback : function(animator, errors) {
  *         // For example, animator map object may be used after initialization.
- *         var map = animator.getConfig().getMap();
+ *         var map = animator.getFactory().getMap();
  *     }
  * });
  */
@@ -102,6 +102,7 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
         // Options that contain for example div IDS.
         var _options;
         var _config;
+        var _factory;
 
         // Set when operation is going on.
         var _requestAnimationTime;
@@ -895,11 +896,11 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
          */
         function setMapAndLayers() {
             if (_options.mapDivId) {
-                var map = _config.getMap();
+                var map = _factory.getMap();
                 if (map) {
                     // Render map to its position.
                     map.render(_options.mapDivId);
-                    var layers = _config.getLayers();
+                    var layers = _factory.getLayers();
                     if (layers) {
                         setAnimationLegendEventListener(layers);
                         setLayers(map, layers);
@@ -1150,6 +1151,20 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
         /**
          * See API for function description.
          */
+        function getFactory() {
+            if (_options && !_options.callback) {
+                var errorStr = "ERROR: Animator init options.callback is mandatory if getConfig is used!";
+                if ("undefined" !== typeof console && console) {
+                    console.error(errorStr);
+                }
+                throw errorStr;
+            }
+            return _factory;
+        }
+
+        /**
+         * See API for function description.
+         */
         function refresh() {
             // Handle refresh operation same way as window resize event.
             // Notice, jQuery does not seem to provide easy way to listen for
@@ -1160,7 +1175,7 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
 
             // Also, make sure map is updated properly.
             if (_config) {
-                var map = _config.getMap();
+                var map = _factory.getMap();
                 if (map) {
                     map.updateSize();
                 }
@@ -1172,7 +1187,7 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
          */
         function reset() {
             if (_config) {
-                var map = _config.getMap();
+                var map = _factory.getMap();
                 if (map) {
                     // Notice, map needs to be destroyed
                     // before container is removed from DOM.
@@ -1200,6 +1215,7 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
 
             // Reset options and configurations.
             _config = undefined;
+            _factory = undefined;
             _options = undefined;
         }
 
@@ -1216,7 +1232,7 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
                     createStructure(options);
                     // Configuration object is deep cloned here.
                     // Then, if properties are changed during the flow, the content of the original object is not changed.
-                    _config = new fi.fmi.metoclient.ui.animator.Factory(_.cloneDeep(options.config || fi.fmi.metoclient.ui.animator.Config, cloneDeepCallback));
+                    _config = new fi.fmi.metoclient.ui.animator.ConfigLoader(_.cloneDeep(options.config || fi.fmi.metoclient.ui.animator.Config, cloneDeepCallback));
                     // Start asynchronous initialization.
                     // Also, show progressbar during asynchronous operation.
                     jQuery(".animatorLoadProgressbar").show();
@@ -1227,9 +1243,12 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
                         if (!errors.length) {
                             // Asynchronous initialization is successful
                             // Hide the progressbar.
+                            console.log("Config", _config, _config.getConfig());
                             _config.init(capabilities);
+                            _factory = new fi.fmi.metoclient.ui.animator.Factory(_config);
                         } else {
                             // TODO Report errors
+                            console.error("Got async errors");
                         }
                         jQuery(".animatorLoadProgressbar").hide();
                         configInitCallback(options, errors);
@@ -1350,13 +1369,11 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
         this.refresh = refresh;
 
         /**
-         * Getter for configuration API object.
+         * Getter for configuration loader API object.
          *
-         * Configuration API provides getter functions for animation configurations and also for
-         * {OpenLayers} components. Then, for example, animation {OpenLayers.Map} is available
-         * via the API.
+         * Configuration API provides getter functions for animation configurations.
          *
-         * See, {fi.fmi.metoclient.ui.animator.Factory} API for more detailed description.
+         * See, {fi.fmi.metoclient.ui.animator.ConfigLoader} API for more detailed description.
          *
          * Notice, {options.callback} is mandatory if {options} is given for {init} function
          * and if {getConfig} function is used. This is to highlight that asynchronous
@@ -1364,9 +1381,26 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
          *
          * @return {Object} Configuration API object.
          *                  May be {undefined} if animator has not been initialized
-         *                  by calling {init} with {options} object.
+         *                  by calling {init}.
          */
         this.getConfig = getConfig;
+
+        /**
+         * Getter for map and layer factory API object.
+         *
+         * Factory API provides getter functions for OL components such as Map and Layers.
+         *
+         * See, {fi.fmi.metoclient.ui.animator.Factory} API for more detailed description.
+         *
+         * Notice, {options.callback} is mandatory if {options} is given for {init} function
+         * and if {getFactory} function is used. This is to highlight that asynchronous
+         * configuration operations should finish before {getFactory} is used.
+         *
+         * @return {Object} Factory API object.
+         *                  May be {undefined} if animator has not been initialized
+         *                  by calling {init}.
+         */
+        this.getFactory = getFactory;
 
     };
 
