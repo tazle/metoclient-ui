@@ -658,7 +658,7 @@ fi.fmi.metoclient.ui.animator.ConfigLoader = (function() {
          * See API for function description.
          */
         function getCapabilities() {
-            var capabilities = _.map(_capabilitiesContainer, "capabilities");
+            return _.map(_capabilitiesContainer, "capabilities");
         }
 
         function getCapabilitiesUrls() {
