@@ -225,16 +225,7 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
         var handleCallback = function(callback, errors) {
             if (callback) {
                 setTimeout(function() {
-                    try {
-                        callback(_me, errors);
-
-                    } catch(e) {
-                        // Ignore errors that may occur in the callback.
-                        // Callback may be provided from outside of this library.
-                        if ("undefined" !== typeof console && console) {
-                            console.error("ERROR: Callback function error!");
-                        }
-                    }
+                    callback(_me, errors);
                 }, 0);
             }
         };

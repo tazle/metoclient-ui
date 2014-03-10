@@ -86,16 +86,7 @@ fi.fmi.metoclient.ui.animator.WmsCapabilities = (function() {
     function handleCallback(callback, data, errors) {
         if (callback) {
             setTimeout(function() {
-                try {
-                    callback(data, errors);
-
-                } catch(e) {
-                    // Ignore errors that may occur in the callback.
-                    // Callback may be provided from outside of this library.
-                    if ("undefined" !== typeof console && console) {
-                        console.error("ERROR: Callback function error!");
-                    }
-                }
+                callback(data, errors);
             }, 0);
         }
     }
