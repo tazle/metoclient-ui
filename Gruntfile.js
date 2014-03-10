@@ -183,7 +183,7 @@ module.exports = function(grunt) {
         //----------------------------------------------------------------------------------------
         jshint : {
             src : ['src/**/*.js'],
-            dist: ['dist/components/animator/js/animator-<%= pkg.version %>.js'],
+            dist: ['dist/components/animator/js/animator.js'],
             options : {
                 "curly" : true,
                 "eqeqeq" : true,
