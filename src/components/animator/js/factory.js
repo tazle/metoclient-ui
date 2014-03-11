@@ -195,8 +195,8 @@ fi.fmi.metoclient.ui.animator.Factory = (function() {
          */
         function getLayers() {
             var _config = _configLoader.getConfig();
-            // Create layers only if map is available and if layers have not been created before.
-            if (getMap() && _config && _config.layers && _layers.length === 0) {
+            // Create layers only if layers have not been created before.
+            if (_config && _config.layers && _layers.length === 0) {
                 var layerConfigs = _config.layers;
                 // Layer is defined outside of loop and reseted to undefined
                 // inside the loop to make sure value is correct for every loop.
