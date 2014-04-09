@@ -664,6 +664,597 @@ OpenLayers.Layer.Animation = OpenLayers.Class(OpenLayers.Layer, {
     CLASS_NAME : "OpenLayers.Layer.Animation"
 });
 
+// "use strict";
+
+OpenLayers.Layer.Animation.Fader = OpenLayers.Class({
+    /**
+     * Interface for transitioning between two timesteps.
+     *
+     * @param {PreloadingTimedLayer} parentLayer The layer controlling the transition
+     * @param {Layer} fadeOut The layer that should be faded out. May be undefined.
+     * @param {Layer} fadeIn The layer that should be faded in. May be undefined.
+     * @param {Function} cb Callback that must be called after fading is finished
+     * @return {Array<Date>} Dates to preload.
+     */
+    fade : function(parentLayer, fadeOut, fadeIn, afterFade) {
+        throw "This is an interface";
+    }
+});
+
+OpenLayers.Layer.Animation.ImmediateFader = OpenLayers.Class(OpenLayers.Layer.Animation.Fader, {
+    fade : function(parentLayer, fadeOut, fadeIn, afterFade) {
+        if (fadeOut !== undefined) {
+            fadeOut.setOpacity(0);
+        }
+        if (fadeIn !== undefined) {
+            fadeIn.setOpacity(parentLayer.getOpacity());
+        }
+        afterFade();
+    }
+});
+
+OpenLayers.Layer.Animation.TimedFader = OpenLayers.Class(OpenLayers.Layer.Animation.Fader, {
+    initialize : function(duration, step) {
+        this.duration = duration; // ms
+        this.step = step; // step in ms
+    },
+
+    fade : function(parentLayer, fadeOut, fadeIn, afterFade) {
+        var parentOpacity = parentLayer.getOpacity();
+        
+        var nSteps = Math.floor(this.duration / this.step);
+
+        var opacityStep = parentOpacity/nSteps;
+
+        var stepCounter = 0;
+        var intervalId = setInterval(function() {
+            if (stepCounter < nSteps) {
+                stepCounter += 1;
+                if (fadeOut !== undefined) {
+                    fadeOut.setOpacity(parentOpacity - stepCounter*opacityStep);
+                }
+                if (fadeIn !== undefined) {
+                    fadeIn.setOpacity(stepCounter*opacityStep);
+                }
+            } else {
+                clearInterval(intervalId);
+                if (fadeOut !== undefined) {
+                    fadeOut.setOpacity(0);
+                }
+                if (fadeIn !== undefined) {
+                    fadeIn.setOpacity(parentOpacity);
+                }
+                afterFade();
+            }
+        }, this.step);
+    }
+});
+
+// "use strict";
+
+OpenLayers.Layer.Animation.LayerGroupCoordinator = OpenLayers.Class({
+
+    /**
+     * @param {Array<Layer>} layers Array of layers that the coordinator should coordinate. Must noe be undefined or null.
+     * @param {Constraints} constraints Constraints object that defines visibility constraints between layers.
+     * @param {Object} availableRanges Mapping of layer name -> timestep, defines availability of data in the ranges.
+     */
+    initialize : function(layers, constraints, availableRanges) {
+        this._layers = {}; // Mapping layer id -> layer
+        this._constraints = undefined; // Set in update()
+        this._time = undefined; // Set in setTime()
+        _.each(layers, function(l) {this._layers[l.name] = l;}, this);
+        this.update(constraints, availableRanges);
+    },
+
+    // TODO Privatize properly
+    // Ranges are described elsewhere
+    limitTimestep : function(timestepToLimit, limitRange) {
+        console.log(timestepToLimit, limitRange);
+        return timestep.restricted(limitRange[0], limitRange[1], timestepToLimit);
+    },
+
+    /**
+     * Get currently visible range groups.
+     *
+     * @return {Array<String>} Names of currently visible range
+     * groups. If time is not set or current time is not in any range
+     * group, an empty array is returned.
+     */
+    getCurrentRangeGroups : function() {
+        var result = [];
+        if (this._time !== undefined) {
+            _.each(this._constraints.rangeGroups, function(group, groupId) {
+                if (OpenLayers.Layer.Animation.Utils.inRange(this._time, group.range)) {
+                    result.push(groupId);
+                }
+            }, this);
+        }
+        return result;
+    },
+
+        // Constraint object:
+        // - globalRange - all availableRanges are limited to this
+        // - rangeGroups {groupName : {range:range, layers:layers}}
+        //   - availableRanges are limited by the first rangeGroup.range whose .layers contains their id
+    update : function(constraints, availableRanges) {
+        this._constraints = constraints;
+        var restrictedTimesteps = {};
+        _.each(availableRanges, function(timestep, layerName) {
+            var globallyLimitedTimestep = this.limitTimestep(timestep, constraints.globalRange);
+            var rangeGroupId = _.findKey(constraints.rangeGroups, function(rangeGroup) {
+                return _.contains(rangeGroup.layers, layerName);
+            });
+
+            var result;
+            if (rangeGroupId === undefined) {
+                result = globallyLimitedTimestep;
+            } else {
+                result = this.limitTimestep(globallyLimitedTimestep, constraints.rangeGroups[rangeGroupId].range);
+            }
+            restrictedTimesteps[layerName] = result;
+        }, this);
+
+        _.each(this._layers, function(layer, layerName) {
+            var limitedRange = restrictedTimesteps[layerName];
+            if (limitedRange !== undefined) {
+                layer.setRange(limitedRange);
+            } else {
+                console.log("No limited range for layer", layerName);
+                // TODO Warn somehow that no range was set for a layer?
+            }
+        });
+    },
+
+
+    /**
+     * Set time for all layers.
+     */
+    setTime : function(t) {
+        this._time = t;
+        _.invoke(this._layers, "setTime", t);
+    }
+
+});
+
+// "use strict";
+
+OpenLayers.Layer.Animation.PreloadPolicy = OpenLayers.Class({
+    /**
+     * Interface for asking a preload-enabled layer to preload certain
+     * time steps.
+     *
+     * @param {RangedLayer} layer Layer to decide preload times for
+     * @param {Date} t Time that the layer is set to.
+     * @return {Array<Date>} Dates to preload.
+     */
+    preloadAt : function(rangedLayer, t) {
+        throw "This is an interface";
+    }
+});
+
+OpenLayers.Layer.Animation.PreloadDisabled = OpenLayers.Class(OpenLayers.Layer.Animation.PreloadPolicy, {
+    initialize : function() {
+    },
+    preloadAt : function(layer, t) {
+        return [];
+    }
+});
+
+OpenLayers.Layer.Animation.PreloadNext = OpenLayers.Class(OpenLayers.Layer.Animation.PreloadPolicy, {
+    initialize : function() {
+    },
+    preloadAt : function(layer, t) {
+        var range = layer.getRange();
+        var next = range.nextAvailable(t);
+        if (next <= t) {
+            console.log(t, "first", range);
+            var first = range.startTime();
+            if (first !== undefined) {
+                return [first];
+            } else {
+                // Impossile to guess what the next time might be.
+                return [];
+            }
+        } else {
+            console.log(t, "next", next);
+            return [next];
+        }
+    }
+});
+
+OpenLayers.Layer.Animation.PreloadAll = OpenLayers.Class(OpenLayers.Layer.Animation.PreloadPolicy, {
+    initialize : function() {
+    },
+    preloadAt : function(layer, t) {
+        var range = layer.getRange();
+        var first = range.startTime();
+        var last = range.endTime();
+        if (first !== undefined && last !== undefined) {
+            // Mighjt return current time, even twice, but that shouldn't matter
+            var times = range.timesForInterval(t, last).concat(range.timesForInterval(first, t));
+            return _.uniq(times, false, function(x) {return x.getTime();});
+        } else {
+            // Can't preload all, one range endpoint undefined
+            return [];
+        }
+    }
+});
+
+// "use strict";
+
+(function() {
+    function checkOptions(options) {
+        if (!_.isFunction(options.layerFactory)) {
+            throw "layerFactory must be a function";
+        } else {
+            console.log(options.layerFactory);
+        }
+        var objectProps = ["preloadPolicy", "retainPolicy", "fader", "timeSelector"];
+        _.each(objectProps, function(propName) {
+            if (!_.isObject(options[propName])) {
+                throw (propName +" must be an object");
+            }
+        });
+    }
+
+    OpenLayers.Layer.Animation.PreloadingTimedLayer = OpenLayers.Class(OpenLayers.Layer, OpenLayers.Layer.Animation.TimedLayer, OpenLayers.Layer.Animation.TimedLayer, {
+
+        initialize : function(name, options) {
+            checkOptions(options);
+            OpenLayers.Layer.prototype.initialize.call(this, name, options);
+            var _me = this;
+
+            this._layerFactory = options.layerFactory;
+            this._layers = {}; // indexed by ISO 8601 time string
+            this._opacity = 1.0; // Not available through Layer, store locally
+
+            this._preloadPolicy = options.preloadPolicy;
+            this._retainPolicy = options.retainPolicy;
+            this._fader = options.fader;
+            this._timeSelector = options.timeSelector;
+
+            this._currentLayer = undefined; // set through setTime
+            this._requestedTime = undefined; // set through setTime
+            this._shownTime = undefined; // set through setTime
+            this._range = undefined; // set through setTimeAndRange, undefined element means unlimited in that direction
+
+            this.events.register("added", this, this.addedToMap);
+            this.events.register("removed", this, this.removedFromMap);
+        },
+
+        addedToMap : function(ev) {
+            _.each(this._layers, function(layer) {ev.map.addLayer(layer);});
+        },
+
+        removedFromMap : function(ev) {
+            _.each(this._layers, function(layer) {ev.map.removeLayer(layer);});
+        },
+
+        initLayer : function(layer) {
+            if (this.map) {
+                var me = this;
+                layer.events.register("loadstart", this, function() {me.events.triggerEvent("frameloadstarted", {"layer":this, "events":[{"time":layer.getTime()}]});});
+                layer.events.register("loadend", this, function() {me.events.triggerEvent("frameloadcomplete", {"layer":this, "events":[{"time":layer.getTime()}]});});
+
+                this.map.addLayer(layer);
+            }
+        },
+
+        /**
+         * Add layer to map if available, set event listeners, set visibility and Z index
+         */
+        reconfigureLayer : function(layer) {
+            layer.setVisibility(this.getVisibility());
+            layer.setZIndex(this.getZIndex());
+            if (layer === this._currentLayer) {
+                layer.setOpacity(this.getOpacity());
+            } else {
+                layer.setOpacity(0);
+            }
+        },
+
+        loadLayer : function(t) {
+            var k = t.toISOString();
+            var layer = this._layers[k];
+            if (layer === undefined) {
+                console.log("Loading", t);
+                layer = this._layerFactory(t);
+                this.initLayer(layer);
+                this.reconfigureLayer(layer);
+                this._layers[k] = layer;
+            }
+            return layer;
+        },
+
+        setTime : function(requestedTime) {
+            //console.log("Request setting of time to", requestedTime, "on", this.name, "range", this.getRange());
+            var shownTime = this._timeSelector.selectTime(this, requestedTime);
+            console.log(requestedTime, "resulted in", shownTime, this.name);
+            if (shownTime === undefined) {
+                // Don't set time if outside range
+
+                // TODO Need to track whether fade is in progress? Should not start multiple faders concurrently.
+                // TODO setVisibility(false) on old layer after? setVisibility(true) on new layer before?
+                this._fader.fade(this, this._currentLayer, undefined, function() {});
+                this._currentLayer = undefined;
+
+                // TODO Should this event be generated?
+                this._requestedTime = requestedTime;
+                this._shownTime = undefined;
+                this.events.triggerEvent("framechanged", {"layer":this, "events":[{"time":requestedTime}]});
+                return;
+            }
+            this._requestedTime = requestedTime;
+            this._shownTime = shownTime;
+            var layer = this.loadLayer(shownTime);
+            var previousLayer = this._currentLayer;
+            this._currentLayer = layer;
+            this.events.triggerEvent("framechanged", {"layer":this, "events":[{"time":requestedTime}]});
+
+            // TODO Need to track whether fade is in progress? Should not start multiple faders concurrently.
+            if (layer !== previousLayer) {
+                this._fader.fade(this, previousLayer, layer, function() {});
+            }
+
+            var preloadTimes = this._preloadPolicy.preloadAt(this, shownTime);
+            _.each(preloadTimes, function(preloadTime) {
+                var preloadLayer = this.loadLayer(preloadTime);
+            }, this);
+
+        },
+
+        getTime : function() {
+            return this._requestedTime;
+        },
+
+        getRange : function() {
+            return this._range;
+        },
+
+
+        setRange : function(range) {
+            this.setTimeAndRange(this._requestedTime, range);
+        },
+
+        setTimeAndRange : function(time, range) {
+            console.log("Setting range of", this.name, "to", range);
+            this._range = range;
+
+            var loadedTimes = _.invoke(this._layers, 'getTime'); // TimedLayer.getTime
+            var retainedTimes = this._retainPolicy.retain(this, loadedTimes);
+            console.log("Loaded", loadedTimes);
+            console.log("Retained", retainedTimes);
+            // Date.getTime
+            var removedTimestamps = _.difference(_.invoke(loadedTimes, 'getTime'), _.invoke(retainedTimes, 'getTime'));
+            console.log("Removed", removedTimestamps);
+            _.each(removedTimestamps, function(removedTimestamp) {
+                var removed = new Date(removedTimestamp);
+                console.log("Unloading", removed);
+                var removedLayer = this._layers[removed.toISOString()];
+                if (this.map !== undefined) {
+                    this.map.removeLayer(removedLayer);
+                }
+                delete this._layers[removed.toISOString()];
+            }, this);
+
+            if (time !== undefined) {
+                this.setTime(time);
+            }
+        },
+
+        setVisibility : function(visibility) {
+            OpenLayers.Layer.prototype.setVisibility.call(this, visibility);
+            _.each(this._layers, this.reconfigureLayer, this);
+        },
+
+        setOpacity : function(opacity) {
+            this._opacity = opacity;
+            OpenLayers.Layer.prototype.setOpacity.call(this, opacity);
+            _.each(this._layers, this.reconfigureLayer, this);
+        },
+
+        getOpacity : function() {
+            return this._opacity;
+        },
+
+        setZIndex : function(zIndex) {
+            OpenLayers.Layer.prototype.setZIndex.call(this, zIndex);
+            _.each(this._layers, this.reconfigureLayer, this);
+        }
+    });
+})();
+
+// "use strict";
+
+/**
+ * Interface for layers that support limiting their visible time range.
+ */
+OpenLayers.Layer.Animation.TimedLayer = OpenLayers.Class({
+    /**
+     * Set range for which this layer should be displayed. Undefined
+     * range endpoints mean that the range is not limited in that
+     * direction.
+     *
+     * @param {timestep} range Renderable times.
+     */
+    setRange : function(range) {
+        throw "This is an interface";
+    },
+
+    /**
+     * Get current range for which this layer should be displayed.
+     *
+     * @return {timestep} Renderable times.
+     */
+    getRange : function(range) {
+        throw "This is an interface";
+    },
+
+    /**
+     * Set range for which this layer should be displayed, and current
+     * time. May reduce transition artifacts compared to sequential
+     * setRange() and setTime() calls.
+     *
+     * @param {Date} time Time to set layer to.
+     * @param {timestep} range Renderable times.
+     */
+    setTimeAndRange : function(time, range) {
+        throw "This is an interface";
+    },
+
+
+
+});
+
+// "use strict";
+
+OpenLayers.Layer.Animation.RetainPolicy = OpenLayers.Class({
+    /**
+     * Interface for asking a preload-enabled layer to preload certain
+     * time steps.
+     *
+
+     * @param {Array<Date>} times Currently loaded times of the layer
+     * @return {Array<Date>} Times to retain loaded.
+     */
+    retain : function(times) {
+        throw "This is an interface";
+    }
+});
+
+OpenLayers.Layer.Animation.RetainAll = OpenLayers.Class(OpenLayers.Layer.Animation.RetainPolicy, {
+    initialize : function() {
+    },
+
+    retain : function(layer, times) {
+        return times;
+    }
+});
+
+OpenLayers.Layer.Animation.RetainRange = OpenLayers.Class(OpenLayers.Layer.Animation.RetainPolicy, {
+    initialize : function() {
+    },
+    retain : function(layer, times) {
+        var range = layer.getRange();
+        var start = range.startTime();
+        var end = range.endTime();
+        return _.filter(times, function(t) {return (start === undefined || t >= start) && (end === undefined || t <= end);});
+    }
+});
+
+
+// "use strict";
+
+OpenLayers.Layer.Animation.TimeSelector = OpenLayers.Class({
+    /**
+     * Interface for deciding which time point should be shown when given time point is selected.
+     *
+     * @param {RangedLayer} rangedLayer Layer to make the decision on.
+     * @param {Date} t Time that is selected.
+     * @return {Date | undefined} Time to show, or undefined if nothing should be shown.
+     */
+    selectTime : function(rangedLayer, t) {
+        throw "This is an interface";
+    }
+});
+
+OpenLayers.Layer.Animation.ShowPreviousAvailable = OpenLayers.Class(OpenLayers.Layer.Animation.TimeSelector, {
+    initialize : function() {
+    },
+    selectTime : function(layer, t) {
+        var range = layer.getRange();
+        var start = range.startTime();
+        var end = range.endTime();
+        if (OpenLayers.Layer.Animation.Utils.inRange(t, [start, end])) {
+            return layer.getRange().previousAvailable(t, false);
+        } else {
+            return undefined;
+        }
+    }
+});
+
+OpenLayers.Layer.Animation.ShowNextAvailable = OpenLayers.Class(OpenLayers.Layer.Animation.TimeSelector, {
+    initialize : function() {
+    },
+    selectTime : function(layer, t) {
+        var range = layer.getRange();
+        var start = range.startTime();
+        var end = range.endTime();
+        if (OpenLayers.Layer.Animation.Utils.inRange(t, [start, end])) {
+            return layer.getRange().nextAvailable(t, false);
+        } else {
+            return undefined;
+        }
+    }
+});
+
+OpenLayers.Layer.Animation.ShowOnlyAvailable = OpenLayers.Class(OpenLayers.Layer.Animation.TimeSelector, {
+    initialize : function() {
+    },
+    selectTime : function(layer, t) {
+        var previous = layer.getRange().previousAvailable(t);
+        if (previous.getTime() === t.getTime()) {
+            return t;
+        } else {
+            return undefined;
+        }
+    }
+});
+
+// "use strict";
+
+/**
+ * Interface for layers that support setting time of the layer.
+ */
+OpenLayers.Layer.Animation.TimedLayer = OpenLayers.Class({
+    /**
+     * Set time shown by the layer. If the layer is incapable of
+     * showing the exact time set, it may show the previous or next
+     * time, depending on externally set policy.
+     *
+     * @param {Date} t Time to set layer to. Must not be undefined or null.
+     */
+    setTime : function(t) {
+        throw "This is an interface";
+    },
+
+    /**
+     * Get current time displayed by the layer.
+     *
+     * @param {Date} t Time the layer is set to.
+     */
+    getTime : function() {
+        throw "This is an interface";
+    }
+});
+
+// "use strict";
+
+OpenLayers.Layer.Animation.TimedLayerClassWrapper = function(klass, options) {
+    return OpenLayers.Class(klass, {
+        initialize : function() {
+            klass.prototype.initialize.apply(this, arguments);
+            this._time = undefined;
+        },
+
+        setTime : function(t) {
+            this._time = t;
+            options.timeSetter.apply(this, [t]);
+        },
+
+        getTime : function() {
+            return this._time;
+        }
+    });
+};
+
+
+OpenLayers.Layer.Animation.TimedLayerClassWrapper.mergeParams = function(t) {
+    // TODO Browser compatibility of toISOString()?
+    this.mergeNewParams({"TIME" : t.toISOString()});
+};
+
 /**
  * @requires OpenLayers/Layer/Animation/Animation.js
  */
@@ -787,6 +1378,14 @@ OpenLayers.Layer.Animation.Utils = (function() {
     }
 
     /**
+     * See API for function and paremeters description.
+     */
+    function inRange(t, range) {
+        return (range[0] === undefined || t >= range[0]) && (range[1] === undefined || t <= range[1]);
+    }
+
+
+    /**
      * =========================================
      * Public API is returned here.
      * =========================================
@@ -802,6 +1401,21 @@ OpenLayers.Layer.Animation.Utils = (function() {
          *                   Operation is ignored if {undefined} or {null}.
          */
         floorDateToHour : floorDateToHour,
+
+        /**
+         * @method inRange
+         *
+         * Tell if given time is in given range.
+         *
+         * @param {Date} t Time to test.
+         *
+         * @param {Array<Date>} range Range to test against. Undefined
+         * endpoints mean range is semi-open in that direction.
+         *
+         */
+        inRange : inRange
+
+
     };
 })();
 
