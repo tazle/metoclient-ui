@@ -222,6 +222,106 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
                 };
             }
 
+            function fillOutAnimation(animation, mode) {
+                // Check animation resolution of the layer.
+                if (animation.resolutionTime === undefined) {
+                    // Make sure that at least a default resolution is set for animation layer.
+                    animation.resolutionTime = _configLoader.getAnimationResolution();
+                }
+                // Check if layer configuration has set begin and end times for animation.
+                // If whole animation has the values but layer itself does not,
+                // use animation values also for the layer as default.
+                if (animation.beginTime === undefined) {
+                    if (mode === 'oservation') {
+                        animation.beginTime = _configLoader.getAnimationBeginDate();
+                    } else {
+                        animation.beginTime = _configLoader.getForecastBeginDate();
+                    }
+                }
+                if (animation.endTime === undefined) {
+                    if (mode === 'observation') {
+                        animation.endTime = _configLoader.getForecastBeginDate();
+                    } else {
+                        animation.endTime = _configLoader.getAnimationEndDate();
+                    }
+                }
+                if (animation.resolutionTime) {
+                    // Make sure that animation begin time of the layer is set on the correct resolution time.
+                    // This is required if layer itself has defined its own resolution instead of
+                    // using animation resolution.
+                    if (!(animation.beginTime instanceof Date)) {
+                        animation.beginTime = new Date(animation.beginTime);
+                    }
+                    floorDate(animation.beginTime, animation.resolutionTime);
+                    // Make sure that animation end time of the layer is set on the correct resolution time.
+                    // This is required if layer itself has defined its own resolution instead of
+                    // using animation resolution.
+                    if (!(animation.endTime instanceof Date)) {
+                        animation.endTime = new Date(animation.endTime);
+                    }
+                    ceilDate(animation.endTime, animation.resolutionTime);
+                }
+            }
+
+            function fillWmtsDefaults(args) {
+                // TODO Implement
+            }
+
+            function fillWmsDefaults(args) {
+                // WMS default params
+                var defaultParams = {
+                    transparent: true,
+                    format: "image/png"
+                };
+                
+                // WMS default options
+                var defaultOptions = {
+                    singleTile : false,
+                    displayInLayerSwitcher : false,
+                    isBaseLayer : false
+                };
+                
+                var params = _.extend(defaultParams, args[2]);
+                var options = _.extend(defaultOptions, args[3]);
+                
+                args[2] = params;
+                args[3] = options;
+            }
+
+            // Create forecast layer for existing WMS/WMTS layers
+            function createWmsForecastLayer(layerConf) {
+                var subLayers = layerConf.args[3].animation.layers;
+                console.log(subLayers);
+                if (subLayers !== undefined) {
+                    var layers = _.map(subLayers, function(subLayer) {
+                        var name = subLayer.name;
+                        var url = layerConf.args[1];
+                        var params = {layers : subLayer.layer};
+                        var options = {animation : _.pick(subLayer, ["beginTime", "endTime", "resolutionTime", "hasLegend"])};
+                        fillOutAnimation(options.animation, 'forecast');
+                        var args = [name, url, params, options];
+                        fillWmsDefaults(args);
+                    });
+                    return layers[0];
+                }
+            }
+
+            function createWmtsForecastLayer(layerConf) {
+                // TODO Implement
+            }
+
+            function createLayer(args) {
+                var layerFactory = layerFactoryFor(klass, args);
+
+                return new OpenLayers.Layer.Animation.PreloadingTimedLayer(args[0], {
+                    "layerFactory" : layerFactory,
+                    "preloadPolicy" : preloader,
+                    "retainPolicy" : retainer,
+                    "fader" : fader,
+                    "timeSelector" : previousTimeSelector
+                });
+            }
+
             _availability = {};
             
             var retainer = new OpenLayers.Layer.Animation.RetainRange();
@@ -255,89 +355,47 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
                         // Check from the given arguments if any of them contains animation configuration.
                         var animation = findAnimation(config.args);
                         if (animation) {
-                            // Check animation resolution of the layer.
-                            if (animation.resolutionTime === undefined) {
-                                // Make sure that at least a default resolution is set for animation layer.
-                                animation.resolutionTime = _configLoader.getAnimationResolution();
-                            }
-                            // Check if layer configuration has set begin and end times for animation.
-                            // If whole animation has the values but layer itself does not,
-                            // use animation values also for the layer as default.
-                            if (animation.beginTime === undefined) {
-                                animation.beginTime = _configLoader.getAnimationBeginDate();
-                            }
-                            if (animation.endTime === undefined) {
-                                animation.endTime = _configLoader.getAnimationEndDate();
-                            }
-                            if (animation.resolutionTime) {
-                                // Make sure that animation begin time of the layer is set on the correct resolution time.
-                                // This is required if layer itself has defined its own resolution instead of
-                                // using animation resolution.
-                                if (!(animation.beginTime instanceof Date)) {
-                                    animation.beginTime = new Date(animation.beginTime);
-                                }
-                                floorDate(animation.beginTime, animation.resolutionTime);
-                                // Make sure that animation end time of the layer is set on the correct resolution time.
-                                // This is required if layer itself has defined its own resolution instead of
-                                // using animation resolution.
-                                if (!(animation.endTime instanceof Date)) {
-                                    animation.endTime = new Date(animation.endTime);
-                                }
-                                ceilDate(animation.endTime, animation.resolutionTime);
-                            }
+                            fillOutAnimation(animation, 'observation');
 
                             _availability[config.args[0]] = timestep.restricted(animation.beginTime, animation.endTime, animation.resolutionTime);
 
-                            // TODO Build additional layers out of sub-layers
                             // TODO Ability to name "timelines" e.g. "Temperature" that consists of "Temperature-observation" and "Temperature-forecast"
 
                             // Interpret legacy layer names and create corresponding wrappers
                             var klass;
+                            var forecastLayer;
                             if (config.className.indexOf("OpenLayers.Layer.Animation.Wms") === 0) {
                                 // WMS case
                                 klass = OpenLayers.Layer.Animation.TimedLayerClassWrapper(OpenLayers.Layer.WMS, {
                                     timeSetter: OpenLayers.Layer.Animation.TimedLayerClassWrapper.mergeParams
                                 });
-                                
-                                // WMS default params
-                                var defaultParams = {
-                                    transparent: true,
-                                    format: "image/png"
-                                };
 
-                                // WMS default options
-                                var defaultOptions = {
-                                    singleTile : false,
-                                    displayInLayerSwitcher : false,
-                                    isBaseLayer : false
-                                };
-
-                                var params = _.extend(defaultParams, config.args[2]);
-                                var options = _.extend(defaultOptions, config.args[3]);
-                                
-                                config.args[2] = params;
-                                config.args[3] = options;
+                                fillWmsDefaults(config.args);
+                                forecastLayer = createWmsForecastLayer(config);
                             } else if (config.className.indexOf("OpenLayers.Layer.Animation.Wms") === 0) {
                                 // WMTS case
+                                // TODO Default configuration
                                 klass = OpenLayers.Layer.Animation.TimedLayerClassWrapper(OpenLayers.Layer.WMTS, {
                                     timeSetter: OpenLayers.Layer.Animation.TimedLayerClassWrapper.mergeParams
                                 });
+                                
+                                fillWmtsDefaults(config.args);
+                                forecastLayer = createWmtsForecastLayer(config);
                             } else {
                                 // TODO Some other case, decide what to do later
                                 throw "Unknown class: " + config.className;
                             }
-                            var layerFactory = layerFactoryFor(klass, config.args);
 
-                            var preloadingLayer = new OpenLayers.Layer.Animation.PreloadingTimedLayer(config.args[0], {
-                                "layerFactory" : layerFactory,
-                                "preloadPolicy" : preloader,
-                                "retainPolicy" : retainer,
-                                "fader" : fader,
-                                "timeSelector" : previousTimeSelector
-                            });
+                            var preloadingLayer = createLayer(config.args);
 
                             observationLayers.push(preloadingLayer.name);
                             _layers.push(preloadingLayer);
+
+                            if (forecastLayer !== undefined) {
+                                forecastLayers.push(forecastLayer.name);
+                                _layers.push(forecastLayer);
+                            }
+
                         } else {
                             // Just create a basic layer
                             _layers.push(createInstance(config.className, config.args));
@@ -374,10 +432,14 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
          */
         this.getLayers = getLayers;
 
-        // TODO Document getConstraints
+        /**
+         * @return {Object} Constraints object as specified in openlayers-animation.
+         */
         this.getConstraints = getConstraints;
 
-        // TODO Document getAvailableRanges
+        /**
+         * @return {Object} Available ranges object as specified in openlayers-animation.
+         */
         this.getAvailableRanges = getAvailableRanges;
 
     };
