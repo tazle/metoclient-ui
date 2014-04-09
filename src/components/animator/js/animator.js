@@ -26,8 +26,8 @@ fi.fmi.metoclient = fi.fmi.metoclient || {};
 fi.fmi.metoclient.ui = fi.fmi.metoclient.ui || {};
 fi.fmi.metoclient.ui.animator = fi.fmi.metoclient.ui.animator || {};
 
-if ("undefined" === typeof fi.fmi.metoclient.ui.animator.Factory || !fi.fmi.metoclient.ui.animator.Factory) {
-    throw "ERROR: fi.fmi.metoclient.ui.animator.Factory is required for fi.fmi.metoclient.ui.animator.Animator!";
+if ("undefined" === typeof fi.fmi.metoclient.ui.animator.Factory2 || !fi.fmi.metoclient.ui.animator.Factory2) {
+    throw "ERROR: fi.fmi.metoclient.ui.animator.Factory2 is required for fi.fmi.metoclient.ui.animator.Animator!";
 }
 
 if ("undefined" === typeof fi.fmi.metoclient.ui.animator.Controller || !fi.fmi.metoclient.ui.animator.Controller) {
@@ -58,18 +58,6 @@ if ("undefined" === typeof fi.fmi.metoclient.ui.animator.Controller || !fi.fmi.m
  * });
  */
 fi.fmi.metoclient.ui.animator.Animator = (function() {
-
-    /**
-     * Controller object.
-     *
-     * Same controller for all the Animator instances.
-     * This will trigger and listen events to and from the OpenLayers animation element.
-     */
-    var MyController = {
-        // Use OpenLayers events as a controller and this singleton object as its container.
-        events : new OpenLayers.Events(this)
-    };
-
     /**
      * Deep clone callback function for lodash.
      *
@@ -104,6 +92,9 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
         var _config;
         var _factory;
 
+        // Coordinate time, ranges and visibility of temporally dependent layers
+        var _coordinator;
+
         // Set when operation is going on.
         var _requestAnimationTime;
 
@@ -124,6 +115,8 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
 
         // Animation controller is set here during initialization.
         var _animationController;
+        // Time controller must be available to animator code so that period changes can happen
+        var _timeController;
         // Resize function is set to this member variable
         // when new controller is created. By using this member variable,
         // multiple functions are not set if controllers are created multiple times.
@@ -139,25 +132,26 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
             scope : _me,
             // These are defined here to show which events are used.
             // Actual functions are set for these parameters later.
-            animationloadstarted : undefined,
+            // animationloadstarted : undefined,
             frameloadstarted : undefined,
             frameloadcomplete : undefined,
-            animationloadgroupprogress : undefined,
-            animationloadcomplete : undefined,
-            animationframecontentreleased : undefined,
+            // animationloadgroupprogress : undefined,
+            // animationloadcomplete : undefined,
+            // animationframecontentreleased : undefined,
             framechanged : undefined
         };
 
         // OpenLayers Animation layer event callbacks.
         //--------------------------------------------
 
-        _events.animationloadstarted = function(event) {
-            progressbarLoadStarted(event.layer);
-            firePause();
-            jQuery.each(_animationEventsListeners, function(index, value) {
-                value.loadAnimationStartedCb(event);
-            });
-        };
+        // TODO Trace functionality
+        // _events.animationloadstarted = function(event) {
+        //     progressbarLoadStarted(event.layer);
+        //     firePause();
+        //     jQuery.each(_animationEventsListeners, function(index, value) {
+        //         value.loadAnimationStartedCb(event);
+        //     });
+        // };
 
         _events.frameloadstarted = function(event) {
             jQuery.each(_animationEventsListeners, function(index, value) {
@@ -171,26 +165,29 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
             });
         };
 
-        _events.animationloadgroupprogress = function(event) {
-            jQuery.each(_animationEventsListeners, function(index, value) {
-                value.loadGroupProgressCb(event);
-            });
-        };
+        // TODO Trace functionality
+        // _events.animationloadgroupprogress = function(event) {
+        //     jQuery.each(_animationEventsListeners, function(index, value) {
+        //         value.loadGroupProgressCb(event);
+        //     });
+        // };
 
-        _events.animationloadcomplete = function(event) {
-            progressbarLoadComplete(event.layer);
-            firePlay();
-            jQuery.each(_animationEventsListeners, function(index, value) {
-                value.loadCompleteCb(event);
-            });
-        };
+        // TODO Trace functionality
+        // _events.animationloadcomplete = function(event) {
+        //     progressbarLoadComplete(event.layer);
+        //     firePlay();
+        //     jQuery.each(_animationEventsListeners, function(index, value) {
+        //         value.loadCompleteCb(event);
+        //     });
+        // };
 
-        _events.animationframecontentreleased = function(event) {
-            progressbarLoadComplete(event.layer);
-            jQuery.each(_animationEventsListeners, function(index, value) {
-                value.animationFrameContentReleasedCb(event);
-            });
-        };
+        // TODO Trace functionality
+        // _events.animationframecontentreleased = function(event) {
+        //     progressbarLoadComplete(event.layer);
+        //     jQuery.each(_animationEventsListeners, function(index, value) {
+        //         value.animationFrameContentReleasedCb(event);
+        //     });
+        // };
 
         _events.framechanged = function(event) {
             jQuery.each(_animationEventsListeners, function(index, value) {
@@ -230,15 +227,38 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
             }
         };
 
+        function updateCapabilitiesCallback() {
+            var newConfig = new fi.fmi.metoclient.ui.animator.ConfigLoader(_.cloneDeep(_options.config || fi.fmi.metoclient.ui.animator.Config, cloneDeepCallback));
+            
+            console.log("Updated capabilities");
+            fi.fmi.metoclient.ui.animator.WmsCapabilities.getDataMultiple(newConfig.getCapabilitiesUrls(), function(capabilities, errors) {
+                console.log("Got capabilities update");
+                if (!errors.length) {
+                    // Asynchronous initialization is successful
+                    newConfig.init(capabilities);
+
+                    // TODO Extract animation data
+                    // TODO Update layer ranges to coordinator
+                    // TODO Update timeline (how?)
+                    _config = newConfig;
+                    _timeController.proposeTimePeriodChange(getBeginDate(), getEndDate(), getResolution());
+                } else {
+                    // TODO Report errors
+                    console.error("Got async errors during config update");
+                }
+            });
+
+        }
+
         /**
          * Callback for configuration {init} function call.
          *
          * See more details from {init} function for {options} and {errors} parameters.
          *
-         * @param {Object} options Options for animator initialization.
+         * @param {Object} capabilities Capabilities object from the server.
          * @param {Array} errors Array that contains possible errors that occurred during the flow.
          */
-        function configInitCallback(options, errors) {
+        function configInitCallback(capabilities, errors) {
             // Create structure only if initialization was a total success.
             if (errors && errors.length) {
                 // Inform that animation structure is not created at all.
@@ -249,6 +269,24 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
                 }
 
             } else {
+                // Asynchronous initialization is successful
+                console.log("Got data");
+                console.log("Original Config", _config, _config.getConfig());
+                _config.init(capabilities);
+                console.log("Original with Capabilities", _config, _config.getConfig());
+
+                // Hide the progressbar.
+                jQuery(".animatorLoadProgressbar").hide();
+
+                _factory = new fi.fmi.metoclient.ui.animator.Factory2(_config);
+                var layers = _factory.getLayers();
+                var controllableLayers = _.filter(layers, function(l) {return l.setTime && l.setRange;});
+
+                var constraints = _factory.getConstraints();
+                var availableRanges = _factory.getAvailableRanges();
+
+                _coordinator = new OpenLayers.Layer.Animation.LayerGroupCoordinator(controllableLayers, constraints, availableRanges);
+
                 // Use options and configuration object to set map and layers.
                 setMapAndLayers();
 
@@ -257,7 +295,16 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
             }
 
             // Handle callback after asynchronous initialization.
-            handleCallback(options.callback, errors);
+            handleCallback(_options.callback, errors);
+            
+            console.log("Caps", _config.getCapabilities(), _config.getConfig().updateCapabilities);
+            if (_config.getCapabilities().length && _config.getConfig().updateCapabilities) {
+                console.log("Scheduling GetCapabilities updates");
+                // GetCapabilities in use and updates requested, schedule updates
+                setTimeout(function() { // TODO Switch back to setIntervaland 60 second after initial testing
+                    updateCapabilitiesCallback();
+                }, 3000);
+            }
         }
 
         // Utils functions.
@@ -411,9 +458,8 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
                 var deltaTime = getResolution();
                 _currentTime = _currentTime + deltaTime > getEndDate().getTime() ? getBeginDate().getTime() : _currentTime + deltaTime;
             }
-            MyController.events.triggerEvent("timechanged", {
-                time : _currentTime
-            });
+
+            _coordinator.setTime(new Date(_currentTime));
         }
 
         function changeToPreviousFrame() {
@@ -424,17 +470,19 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
                 var deltaTime = getResolution();
                 _currentTime = _currentTime - deltaTime < getBeginDate().getTime() ? getEndDate().getTime() : _currentTime - deltaTime;
             }
-            MyController.events.triggerEvent("timechanged", {
-                time : _currentTime
-            });
+
+            _coordinator.setTime(new Date(_currentTime));
         }
 
         /**
          * Inform listeners about the period change.
          */
-        function fireTimePeriodChanged(startTime, endTime, listeners) {
+        function fireTimePeriodChanged(startTime, endTime, resolution, listeners) {
+
+            // TODO Calculate new available ranges, new constraints and update _coordinator
+
             jQuery.each(listeners, function(index, value) {
-                value.timePeriodChanged(startTime, endTime);
+                value.timePeriodChanged(startTime, endTime, resolution);
             });
         }
 
@@ -442,12 +490,14 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
          * Inform listeners that new time is selected.
          */
         function fireSelectedTimeChanged(time, listeners) {
+            // TODO Throttle this
+            // TODo Only fire setTime and listeners if time actually changed?
+
             // Because time change is proposed from outside.
             // Also, make sure animation is updated accordingly.
             _currentTime = time instanceof Date ? time.getTime() : time;
-            MyController.events.triggerEvent("timechanged", {
-                time : time
-            });
+
+            _coordinator.setTime(new Date(_currentTime));
             jQuery.each(listeners, function(index, value) {
                 value.selectedTimeChanged(time);
             });
@@ -798,6 +848,7 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
             if (_options.legendDivId) {
                 var legendTimeout;
                 var legendEventHandler = function(event) {
+                    // TODO *Why?*
                     // Use small timeout to make sure legends are not set too close to each other
                     // if multiple actions of same kind are started in a group.
                     if (undefined === legendTimeout) {
@@ -857,32 +908,6 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
         }
 
         /**
-         * Set given layers into the map.
-         * Also, register layers and controller to listen events.
-         *
-         * @param {OpenLayers.Map} map Map that will contain the given layers.
-         * @param [{OpenLayers.Layer}] layers Array of layers that will be added to the map.
-         */
-        function setLayers(map, layers) {
-            for (var i = 0; i < layers.length; ++i) {
-                var layer = layers[i];
-                if (layer.registerController) {
-                    // Layer has the required function.
-                    // Register layer to listen animation related controller events.
-                    layer.registerController(MyController.events);
-                }
-                if (layer.events) {
-                    // Register to listen animation events.
-                    layer.events.on(_events);
-                }
-                // Add layer to map.
-                // Notice, this also starts the animation if
-                // autoload and autostart have been defined for configuration.
-                map.addLayer(layer);
-            }
-        }
-
-        /**
          * Set layers into the map.
          */
         function setMapAndLayers() {
@@ -894,7 +919,18 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
                     var layers = _factory.getLayers();
                     if (layers) {
                         setAnimationLegendEventListener(layers);
-                        setLayers(map, layers);
+
+                        for (var i = 0; i < layers.length; ++i) {
+                            var layer = layers[i];
+                            if (layer.events) {
+                                // Register to listen animation events.
+                                layer.events.on(_events);
+                            }
+                            // Add layer to map.
+                            // Notice, this also starts the animation if
+                            // autoload and autostart have been defined for configuration.
+                            map.addLayer(layer);
+                        }
                     }
                     // Zoom the map after layers have been inserted.
                     map.setCenter(map.getCenter(), _config.getDefaultZoomLevel());
@@ -949,15 +985,6 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
                 var ctrlSelector = "#" + _options.controllerDivId;
                 var ctrls = jQuery(ctrlSelector);
                 if (ctrls.length) {
-                    var currentTime = (new Date()).getTime();
-                    var startTime = getBeginDate().getTime();
-                    var endTime = getEndDate().getTime();
-                    // Forecast start time.
-                    var fctStart = getForecastBeginDate().getTime();
-                    // If end time is less than forecast time, then forecast is not used and value is left undefined.
-                    if (endTime < fctStart) {
-                        fctStart = undefined;
-                    }
                     var timePeriodListeners = [];
                     var timeSelectionListeners = [];
                     var fctStartTimeListeners = [];
@@ -966,16 +993,16 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
                     // Model is used by animation controller to setup slider according to the animation settings.
                     var timeModel = {
                         getStartTime : function() {
-                            return startTime;
+                            return getBeginDate().getTime();
                         },
                         getEndTime : function() {
-                            return endTime;
+                            return getEndDate().getTime();
                         },
                         getResolution : function() {
                             return getResolution();
                         },
                         getForecastStartTime : function() {
-                            return fctStart;
+                            return getForecastBeginDate().getTime();
                         },
                         addTimePeriodChangeListener : function(l) {
                             timePeriodListeners.push(l);
@@ -996,12 +1023,12 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
 
                     // Animation controller may use these callback functions to inform
                     // if animation state should be changed because of the actions in the slider.
-                    var timeController = {
-                        proposeTimePeriodChange : function(startTime, endTime) {
-
+                    _timeController = {
+                        proposeTimePeriodChange : function(startTime, endTime, resolution) {
+                            fireTimePeriodChanged(startTime, endTime, resolution, timePeriodListeners);
                         },
                         proposeTimeSelectionChange : function(time) {
-                            if ((time >= startTime) && (time <= endTime)) {
+                            if ((time >= getBeginDate().getTime()) && (time <= getEndDate().getTime())) {
                                 // Make sure steps are in given resolutions.
                                 time = time - time % getResolution();
                                 fireSelectedTimeChanged(time, timeSelectionListeners);
@@ -1018,7 +1045,7 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
                         }
                     };
 
-                    _animationController = createCtrl(ctrls, timeModel, timeController);
+                    _animationController = createCtrl(ctrls, timeModel, _timeController);
 
                     // Bind to listen for width changes in element to update
                     // controller if necessary. Width is defined as relative
@@ -1032,7 +1059,7 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
                             width = currentWidth;
                             // Simply replace old with a new controller.
                             _animationController.remove();
-                            _animationController = createCtrl(ctrls, timeModel, timeController);
+                            _animationController = createCtrl(ctrls, timeModel, _timeController);
                         }
                     });
 
@@ -1229,21 +1256,7 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
                     jQuery(".animatorLoadProgressbar").show();
 
                     console.log("Fetching data");
-                    fi.fmi.metoclient.ui.animator.WmsCapabilities.getDataMultiple(_config.getCapabilitiesUrls(), function(capabilities, errors) {
-                        console.log("Got data");
-                        if (!errors.length) {
-                            // Asynchronous initialization is successful
-                            // Hide the progressbar.
-                            console.log("Config", _config, _config.getConfig());
-                            _config.init(capabilities);
-                            _factory = new fi.fmi.metoclient.ui.animator.Factory(_config);
-                        } else {
-                            // TODO Report errors
-                            console.error("Got async errors");
-                        }
-                        jQuery(".animatorLoadProgressbar").hide();
-                        configInitCallback(options, errors);
-                    });
+                    fi.fmi.metoclient.ui.animator.WmsCapabilities.getDataMultiple(_config.getCapabilitiesUrls(), configInitCallback);
                 } catch(e) {
                     // An error occurred in synchronous flow.
                     // But, inform observer about the error asynchronously.

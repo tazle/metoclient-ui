@@ -741,7 +741,7 @@ fi.fmi.metoclient.ui.animator.Controller = (function() {
         function setTimeModel(model) {
             _model = model;
             model.addTimePeriodChangeListener({
-                timePeriodChanged : function(start, end) {
+                timePeriodChanged : function(start, end, resolution) {
                     redrawAll();
                 }
             });
