@@ -203,6 +203,7 @@ module.exports = function(grunt) {
                     "jQuery" : true,
                     "Raphael" : true,
                     "_" : true,
+                    "timestep" : true,
                     "fi" : true,
                     "requestAnimationFrame" : true,
                     "timezoneJS" : true,
