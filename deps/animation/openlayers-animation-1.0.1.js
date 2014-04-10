@@ -750,7 +750,6 @@ OpenLayers.Layer.Animation.LayerGroupCoordinator = OpenLayers.Class({
     // TODO Privatize properly
     // Ranges are described elsewhere
     limitTimestep : function(timestepToLimit, limitRange) {
-        console.log(timestepToLimit, limitRange);
         return timestep.restricted(limitRange[0], limitRange[1], timestepToLimit);
     },
 
@@ -778,6 +777,7 @@ OpenLayers.Layer.Animation.LayerGroupCoordinator = OpenLayers.Class({
         // - rangeGroups {groupName : {range:range, layers:layers}}
         //   - availableRanges are limited by the first rangeGroup.range whose .layers contains their id
     update : function(constraints, availableRanges) {
+        console.log("Available ranges", availableRanges);
         this._constraints = constraints;
         var restrictedTimesteps = {};
         _.each(availableRanges, function(timestep, layerName) {
@@ -792,6 +792,8 @@ OpenLayers.Layer.Animation.LayerGroupCoordinator = OpenLayers.Class({
             } else {
                 result = this.limitTimestep(globallyLimitedTimestep, constraints.rangeGroups[rangeGroupId].range);
             }
+            console.log("Limited", layerName, "from", timestep, "to", result);
+
             restrictedTimesteps[layerName] = result;
         }, this);
 
@@ -800,8 +802,7 @@ OpenLayers.Layer.Animation.LayerGroupCoordinator = OpenLayers.Class({
             if (limitedRange !== undefined) {
                 layer.setRange(limitedRange);
             } else {
-                console.log("No limited range for layer", layerName);
-                // TODO Warn somehow that no range was set for a layer?
+                throw "No limited range for layer " + layerName;
             }
         });
     },
@@ -887,8 +888,6 @@ OpenLayers.Layer.Animation.PreloadAll = OpenLayers.Class(OpenLayers.Layer.Animat
     function checkOptions(options) {
         if (!_.isFunction(options.layerFactory)) {
             throw "layerFactory must be a function";
-        } else {
-            console.log(options.layerFactory);
         }
         var objectProps = ["preloadPolicy", "retainPolicy", "fader", "timeSelector"];
         _.each(objectProps, function(propName) {
@@ -968,6 +967,9 @@ OpenLayers.Layer.Animation.PreloadAll = OpenLayers.Class(OpenLayers.Layer.Animat
         },
 
         setTime : function(requestedTime) {
+            if (requestedTime === undefined) {
+                throw "Cannot set time of layer " + this.name + " to undefined";
+            }
             //console.log("Request setting of time to", requestedTime, "on", this.name, "range", this.getRange());
             var shownTime = this._timeSelector.selectTime(this, requestedTime);
             console.log(requestedTime, "resulted in", shownTime, this.name);
@@ -1009,7 +1011,11 @@ OpenLayers.Layer.Animation.PreloadAll = OpenLayers.Class(OpenLayers.Layer.Animat
         },
 
         getRange : function() {
-            return this._range;
+            if (this._range !== undefined) {
+                return this._range;
+            } else {
+                throw "Range not set for layer " + this.name;
+            }
         },
 
 
@@ -1018,6 +1024,11 @@ OpenLayers.Layer.Animation.PreloadAll = OpenLayers.Class(OpenLayers.Layer.Animat
         },
 
         setTimeAndRange : function(time, range) {
+            // time may be undefined here, as a result of setRange before time has been set
+            if (range === undefined) {
+                throw "Cannot set time of layer " + this.name + " to undefined";
+            }
+
             console.log("Setting range of", this.name, "to", range);
             this._range = range;
 
