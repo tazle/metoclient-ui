@@ -232,7 +232,7 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
                 // If whole animation has the values but layer itself does not,
                 // use animation values also for the layer as default.
                 if (animation.beginTime === undefined) {
-                    if (mode === 'oservation') {
+                    if (mode === 'observation') {
                         animation.beginTime = _configLoader.getAnimationBeginDate();
                     } else {
                         animation.beginTime = _configLoader.getForecastBeginDate();
