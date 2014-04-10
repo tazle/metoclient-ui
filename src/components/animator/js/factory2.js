@@ -290,17 +290,23 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
 
             // Create forecast layer for existing WMS/WMTS layers
             function createWmsForecastLayer(layerConf) {
+                var klass = OpenLayers.Layer.Animation.TimedLayerClassWrapper(OpenLayers.Layer.WMS, {
+                    timeSetter: OpenLayers.Layer.Animation.TimedLayerClassWrapper.mergeParams
+                });
+
                 var subLayers = layerConf.args[3].animation.layers;
-                console.log(subLayers);
-                if (subLayers !== undefined) {
+                if (subLayers !== undefined && subLayers.length > 0) {
+                    console.log("Found subLayers for layer", layerConf.args[0]);
                     var layers = _.map(subLayers, function(subLayer) {
                         var name = subLayer.name;
                         var url = layerConf.args[1];
                         var params = {layers : subLayer.layer};
                         var options = {animation : _.pick(subLayer, ["beginTime", "endTime", "resolutionTime", "hasLegend"])};
                         fillOutAnimation(options.animation, 'forecast');
+                        console.log("Filled-out animation config for layer", name, options.animation);
                         var args = [name, url, params, options];
                         fillWmsDefaults(args);
+                        return createLayer(klass, name, args);
                     });
                     return layers[0];
                 }
@@ -310,8 +316,12 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
                 // TODO Implement
             }
 
-            function createLayer(args) {
+            function createLayer(klass, name, args) {
+                // TODO Constraints and availability
                 var layerFactory = layerFactoryFor(klass, args);
+
+                var animation = args[3].animation;
+                _availability[name] = timestep.restricted(animation.beginTime, animation.endTime, animation.resolutionTime);
 
                 return new OpenLayers.Layer.Animation.PreloadingTimedLayer(args[0], {
                     "layerFactory" : layerFactory,
@@ -343,66 +353,67 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
             _constraints["rangeGroups"]["observation"] = {range: [_configLoader.getAnimationBeginDate(), _configLoader.getForecastBeginDate()], layers: observationLayers};
             _constraints["rangeGroups"]["forecast"] = {range: [_configLoader.getForecastBeginDate(), _configLoader.getAnimationEndDate()], layers: forecastLayers};
 
+            function processConfig() {
+                // Create layers only if layers have not been created before.
+                if (_config && _config.layers && _layers.length === 0) {
+                    var layerConfigs = _config.layers;
+                    for (var i = 0; i < layerConfigs.length; ++i) {
+                        var config = layerConfigs[i];
+                        // Reset layer to undefined for this loop.
+                        if (config && config.className && config.args) {
+                            // Layers are created by providing arguments list in configuration.
+                            // Check from the given arguments if any of them contains animation configuration.
+                            var animation = findAnimation(config.args);
+                            if (animation) {
+                                fillOutAnimation(animation, 'observation');
 
-            // Create layers only if layers have not been created before.
-            if (_config && _config.layers && _layers.length === 0) {
-                var layerConfigs = _config.layers;
-                for (var i = 0; i < layerConfigs.length; ++i) {
-                    var config = layerConfigs[i];
-                    // Reset layer to undefined for this loop.
-                    if (config && config.className && config.args) {
-                        // Layers are created by providing arguments list in configuration.
-                        // Check from the given arguments if any of them contains animation configuration.
-                        var animation = findAnimation(config.args);
-                        if (animation) {
-                            fillOutAnimation(animation, 'observation');
+                                // TODO Ability to name "timelines" e.g. "Temperature" that consists of "Temperature-observation" and "Temperature-forecast"
 
-                            _availability[config.args[0]] = timestep.restricted(animation.beginTime, animation.endTime, animation.resolutionTime);
+                                // Interpret legacy layer names and create corresponding wrappers
+                                var klass;
+                                var forecastLayer;
+                                if (config.className.indexOf("OpenLayers.Layer.Animation.Wms") === 0) {
+                                    // WMS case
+                                    klass = OpenLayers.Layer.Animation.TimedLayerClassWrapper(OpenLayers.Layer.WMS, {
+                                        timeSetter: OpenLayers.Layer.Animation.TimedLayerClassWrapper.mergeParams
+                                    });
 
-                            // TODO Ability to name "timelines" e.g. "Temperature" that consists of "Temperature-observation" and "Temperature-forecast"
+                                    fillWmsDefaults(config.args);
+                                    forecastLayer = createWmsForecastLayer(config);
+                                } else if (config.className.indexOf("OpenLayers.Layer.Animation.Wms") === 0) {
+                                    // WMTS case
+                                    // TODO Default configuration
+                                    klass = OpenLayers.Layer.Animation.TimedLayerClassWrapper(OpenLayers.Layer.WMTS, {
+                                        timeSetter: OpenLayers.Layer.Animation.TimedLayerClassWrapper.mergeParams
+                                    });
 
-                            // Interpret legacy layer names and create corresponding wrappers
-                            var klass;
-                            var forecastLayer;
-                            if (config.className.indexOf("OpenLayers.Layer.Animation.Wms") === 0) {
-                                // WMS case
-                                klass = OpenLayers.Layer.Animation.TimedLayerClassWrapper(OpenLayers.Layer.WMS, {
-                                    timeSetter: OpenLayers.Layer.Animation.TimedLayerClassWrapper.mergeParams
-                                });
+                                    fillWmtsDefaults(config.args);
+                                    forecastLayer = createWmtsForecastLayer(config);
+                                } else {
+                                    // TODO Some other case, decide what to do later
+                                    throw "Unknown class: " + config.className;
+                                }
 
-                                fillWmsDefaults(config.args);
-                                forecastLayer = createWmsForecastLayer(config);
-                            } else if (config.className.indexOf("OpenLayers.Layer.Animation.Wms") === 0) {
-                                // WMTS case
-                                // TODO Default configuration
-                                klass = OpenLayers.Layer.Animation.TimedLayerClassWrapper(OpenLayers.Layer.WMTS, {
-                                    timeSetter: OpenLayers.Layer.Animation.TimedLayerClassWrapper.mergeParams
-                                });
-                                
-                                fillWmtsDefaults(config.args);
-                                forecastLayer = createWmtsForecastLayer(config);
+                                // TODO Should not depend on first arg being layer name
+                                var preloadingLayer = createLayer(klass, config.args[0], config.args);
+
+                                observationLayers.push(preloadingLayer.name);
+                                _layers.push(preloadingLayer);
+
+                                if (forecastLayer !== undefined) {
+                                    forecastLayers.push(forecastLayer.name);
+                                    _layers.push(forecastLayer);
+                                }
+
                             } else {
-                                // TODO Some other case, decide what to do later
-                                throw "Unknown class: " + config.className;
+                                // Just create a basic layer
+                                _layers.push(createInstance(config.className, config.args));
                             }
-
-                            var preloadingLayer = createLayer(config.args);
-
-                            observationLayers.push(preloadingLayer.name);
-                            _layers.push(preloadingLayer);
-
-                            if (forecastLayer !== undefined) {
-                                forecastLayers.push(forecastLayer.name);
-                                _layers.push(forecastLayer);
-                            }
-
-                        } else {
-                            // Just create a basic layer
-                            _layers.push(createInstance(config.className, config.args));
                         }
                     }
                 }
             }
+            processConfig();
             return _layers;
         }
 
