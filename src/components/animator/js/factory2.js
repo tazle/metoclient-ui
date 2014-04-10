@@ -202,8 +202,8 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
          */
         function getLayers() {
             function findAnimation(args) {
-                for (var i = 0; i < config.args.length; i++) {
-                    var arg = config.args[i];
+                for (var i = 0; i < args.length; i++) {
+                    var arg = args[i];
                     if (arg) {
                         var animation = arg.animation;
                         if (animation) {
