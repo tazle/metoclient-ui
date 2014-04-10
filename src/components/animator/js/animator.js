@@ -271,9 +271,7 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
             } else {
                 // Asynchronous initialization is successful
                 console.log("Got data");
-                console.log("Original Config", _config, _config.getConfig());
                 _config.init(capabilities);
-                console.log("Original with Capabilities", _config, _config.getConfig());
 
                 // Hide the progressbar.
                 jQuery(".animatorLoadProgressbar").hide();
