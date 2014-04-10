@@ -488,17 +488,18 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
          * Inform listeners that new time is selected.
          */
         function fireSelectedTimeChanged(time, listeners) {
-            // TODO Throttle this
-            // TODo Only fire setTime and listeners if time actually changed?
-
             // Because time change is proposed from outside.
             // Also, make sure animation is updated accordingly.
-            _currentTime = time instanceof Date ? time.getTime() : time;
+            var newTime = time instanceof Date ? time.getTime() : time;
+            if (newTime !== _currentTime) {
+                // Time changed
+                _currentTime = newTime;
 
-            _coordinator.setTime(new Date(_currentTime));
-            jQuery.each(listeners, function(index, value) {
-                value.selectedTimeChanged(time);
-            });
+                _coordinator.setTime(new Date(_currentTime));
+                jQuery.each(listeners, function(index, value) {
+                    value.selectedTimeChanged(time);
+                });
+            }
         }
 
         /**
