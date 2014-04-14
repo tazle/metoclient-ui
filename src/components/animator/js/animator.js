@@ -1063,6 +1063,9 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
                     });
 
                     setPlayAndPause();
+
+                    // Initialize to beginning of period
+                    _timeController.proposeTimeSelectionChange(getBeginDate().getTime());
                 }
             }
         }
