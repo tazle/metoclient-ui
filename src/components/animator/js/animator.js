@@ -278,6 +278,7 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
 
                 _factory = new fi.fmi.metoclient.ui.animator.Factory2(_config);
                 var layers = _factory.getLayers();
+                var controlLayers = _factory.getControlLayers();
                 var controllableLayers = _.filter(layers, function(l) {return l.setTime && l.setRange;});
 
                 var constraints = _factory.getConstraints();
@@ -916,6 +917,13 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
                     // Render map to its position.
                     map.render(_options.mapDivId);
                     var layers = _factory.getLayers();
+
+                    // Control layers that are visible in layer switcher
+                    var controlLayers = _factory.getControlLayers();
+                    _.each(controlLayers, function(cl) {
+                        map.addLayer(cl);
+                    });
+
                     if (layers) {
                         setAnimationLegendEventListener(layers);
 

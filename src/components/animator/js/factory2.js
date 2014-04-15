@@ -197,6 +197,12 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
             return _map;
         }
 
+        function getControlLayers() {
+            return _.map(_constraints.timelines, function(layers, name) {
+                return new OpenLayers.Layer.Animation.ControlLayer(name, {layers: layers});
+            });
+        }
+
         /**
          * See API for function description.
          */
@@ -333,7 +339,8 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
                     "preloadPolicy" : preloader,
                     "retainPolicy" : retainer,
                     "fader" : fader,
-                    "timeSelector" : previousTimeSelector
+                    "timeSelector" : previousTimeSelector,
+                    "displayInLayerSwitcher" : false
                 });
             }
 
@@ -349,6 +356,7 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
 
             _constraints = {
                 globalRange: [_configLoader.getAnimationBeginDate(), _configLoader.getAnimationEndDate()],
+                timelines: {},
                 rangeGroups: {}
             };
 
@@ -371,8 +379,6 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
                             var animation = findAnimation(config.args);
                             if (animation) {
                                 fillOutAnimation(animation, 'observation');
-
-                                // TODO Ability to name "timelines" e.g. "Temperature" that consists of "Temperature-observation" and "Temperature-forecast"
 
                                 // Interpret legacy layer names and create corresponding wrappers
                                 var klass;
@@ -399,13 +405,15 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
                                     throw "Unknown class: " + config.className;
                                 }
 
-                                // TODO Should not depend on first arg being layer name
+                                // TODO Heureka, can we create the layer first? Before getting its name
                                 var preloadingLayer = createLayer(klass, config.args[0], config.args);
 
+                                _constraints.timelines[preloadingLayer.name] = [preloadingLayer];
                                 observationLayers.push(preloadingLayer.name);
                                 _layers.push(preloadingLayer);
 
                                 if (forecastLayer !== undefined) {
+                                    _constraints.timelines[preloadingLayer.name].push(forecastLayer);
                                     forecastLayers.push(forecastLayer.name);
                                     _layers.push(forecastLayer);
                                 }
@@ -447,6 +455,12 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
          *                              May not be {undefined} or {null}, but may be empty.
          */
         this.getLayers = getLayers;
+
+        /**
+         * @return [{OpenLayers.Layer}] Control Layer array for OpenLayers. Not included in getLayers result. These layers are visible in layer switcher
+         *                              May not be {undefined} or {null}, but may be empty.
+         */
+        this.getControlLayers = getControlLayers;
 
         /**
          * @return {Object} Constraints object as specified in openlayers-animation.
