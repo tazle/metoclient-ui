@@ -334,7 +334,7 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
                 var animation = args[3].animation;
                 _availability[name] = timestep.restricted(animation.beginTime, animation.endTime, animation.resolutionTime);
 
-                return new OpenLayers.Layer.Animation.PreloadingTimedLayer(args[0], {
+                return new OpenLayers.Layer.Animation.PreloadingTimedLayer(name, {
                     "layerFactory" : layerFactory,
                     "preloadPolicy" : preloader,
                     "retainPolicy" : retainer,
@@ -405,7 +405,7 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
                                     throw "Unknown class: " + config.className;
                                 }
 
-                                // TODO Heureka, can we create the layer first? Before getting its name
+                                // TODO Hack, asssume args[0] is layer name
                                 var preloadingLayer = createLayer(klass, config.args[0], config.args);
 
                                 _constraints.timelines[preloadingLayer.name] = [preloadingLayer];
