@@ -201,6 +201,11 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
          * See API for function description.
          */
         function getLayers() {
+            // Only generate layers once
+            if (_layers.length !== 0) {
+                return _layers;
+            }
+
             function findAnimation(args) {
                 for (var i = 0; i < args.length; i++) {
                     var arg = args[i];
@@ -355,7 +360,7 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
 
             function processConfig() {
                 // Create layers only if layers have not been created before.
-                if (_config && _config.layers && _layers.length === 0) {
+                if (_config && _config.layers) {
                     var layerConfigs = _config.layers;
                     for (var i = 0; i < layerConfigs.length; ++i) {
                         var config = layerConfigs[i];
