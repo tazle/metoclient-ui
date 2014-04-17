@@ -454,6 +454,9 @@ fi.fmi.metoclient.ui.animator.Controller = (function() {
                     // Therefore (i+1) is used. Then, when cell content is loaded, the cell that ends to the selected time
                     // is handled instead of handling cell ahead of the time.
                     cell.node.id = "animationProgressCell_" + (begin + (i + 1) * resolution);
+                    cell.data("startDate", new Date(begin + i * resolution));
+                    cell.data("endDate", new Date(begin + (i+1) * resolution));
+
                     _progressCellSet.push(cell);
                     jQuery(cell.node).mousewheel(handleMouseScroll);
                 }
@@ -461,15 +464,15 @@ fi.fmi.metoclient.ui.animator.Controller = (function() {
         }
 
         function getCellByTime(time) {
-            var cell;
             for (var i = 0; i < _progressCellSet.length; ++i) {
-                if (_progressCellSet[i].node.id === "animationProgressCell_" + time) {
-                    cell = _progressCellSet[i];
-                    cell.attr("fill", _scaleConfig.cellReadyColor);
-                    break;
+                var cell = _progressCellSet[i];
+                var start = cell.data("startDate").getTime();
+                var end = cell.data("endDate").getTime();
+                if (start < time && time <= end) {
+                    return cell;
                 }
             }
-            return cell;
+            return undefined;
         }
 
         /**
