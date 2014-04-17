@@ -436,9 +436,15 @@ fi.fmi.metoclient.ui.animator.Controller = (function() {
         }
 
         function redrawTimeCells() {
-            while (_progressCellSet.length) {
-                _progressCellSet.splice(0, 1)[0].remove();
+
+            function findAndRemoveMatchingCell(cells, startDate, endDate) {
+                var matching = _.remove(cells, function(cell) {return cell.data("startDate") === startDate && cell.data("endDate") === endDate;});
+                return matching[0]; // returns undefined if no matches
             }
+
+            var oldCells = _progressCellSet;
+            _progressCellSet = [];
+
             var resolution = getResolution();
             if (resolution) {
                 var begin = getStartTime();
@@ -448,19 +454,28 @@ fi.fmi.metoclient.ui.animator.Controller = (function() {
                 var cellCount = Math.floor((end - begin) / resolution);
                 var cellWidth = getScaleAreaWidth() / cellCount;
                 for (var i = 0; i < cellCount; ++i) {
-                    var cell = _paper.rect(beginX + i * cellWidth, beginY, cellWidth, _scaleConfig.progressCellHeight);
-                    cell.attr("fill", _scaleConfig.bgColor).attr("stroke-width", "0");
-                    // Notice, cell ID actually describes the time value in the end of the cell instead of the beginning.
-                    // Therefore (i+1) is used. Then, when cell content is loaded, the cell that ends to the selected time
-                    // is handled instead of handling cell ahead of the time.
-                    cell.node.id = "animationProgressCell_" + (begin + (i + 1) * resolution);
-                    cell.data("startDate", new Date(begin + i * resolution));
-                    cell.data("endDate", new Date(begin + (i+1) * resolution));
-                    cell.data("nStarted", 0);
-                    cell.data("nComplete", 0);
+                    // Try to find an existing cell first
+                    var cellStart = begin + i * resolution;
+                    var cellEnd = begin + (i+1) * resolution;
+
+                    var cell = findAndRemoveMatchingCell(oldCells, cellStart, cellEnd);
+                    if (cell === undefined) {
+                        // No matching old cell, create a new one
+                        cell = _paper.rect(beginX + i * cellWidth, beginY, cellWidth, _scaleConfig.progressCellHeight);
+                        cell.attr("fill", _scaleConfig.bgColor).attr("stroke-width", "0");
+                        // Notice, cell ID actually describes the time value in the end of the cell instead of the beginning.
+                        // Therefore (i+1) is used. Then, when cell content is loaded, the cell that ends to the selected time
+                        // is handled instead of handling cell ahead of the time.
+                        cell.node.id = "animationProgressCell_" + (begin + (i + 1) * resolution);
+                        cell.data("startDate", cellStart);
+                        cell.data("endDate", cellEnd);
+                        cell.data("nStarted", 0);
+                        cell.data("nComplete", 0);
+
+                        jQuery(cell.node).mousewheel(handleMouseScroll);
+                    }
 
                     _progressCellSet.push(cell);
-                    jQuery(cell.node).mousewheel(handleMouseScroll);
                 }
             }
         }
@@ -468,8 +483,8 @@ fi.fmi.metoclient.ui.animator.Controller = (function() {
         function getCellByTime(time) {
             for (var i = 0; i < _progressCellSet.length; ++i) {
                 var cell = _progressCellSet[i];
-                var start = cell.data("startDate").getTime();
-                var end = cell.data("endDate").getTime();
+                var start = cell.data("startDate");
+                var end = cell.data("endDate");
                 if (start < time && time <= end) {
                     return cell;
                 }
@@ -682,7 +697,7 @@ fi.fmi.metoclient.ui.animator.Controller = (function() {
             // Collection of scale tick elements.
             _tickSet = _paper.set();
             // Collection of progress cell elements.
-            _progressCellSet = _paper.set();
+            _progressCellSet = [];
 
             // Create scale UI components.
             // Scale container is used in the background of the scale elements.
