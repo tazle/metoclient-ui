@@ -456,6 +456,8 @@ fi.fmi.metoclient.ui.animator.Controller = (function() {
                     cell.node.id = "animationProgressCell_" + (begin + (i + 1) * resolution);
                     cell.data("startDate", new Date(begin + i * resolution));
                     cell.data("endDate", new Date(begin + (i+1) * resolution));
+                    cell.data("nStarted", 0);
+                    cell.data("nComplete", 0);
 
                     _progressCellSet.push(cell);
                     jQuery(cell.node).mousewheel(handleMouseScroll);
@@ -571,7 +573,13 @@ fi.fmi.metoclient.ui.animator.Controller = (function() {
                 var time = items[i].time.getTime();
                 var cell = getCellByTime(time);
                 if (cell) {
-                    cell.attr("fill", items[i].error ? _scaleConfig.cellErrorColor : _scaleConfig.cellLoadingColor);
+                    var nStarted = cell.data("nStarted");
+                    nStarted += 1;
+                    cell.data("nStarted", nStarted);
+                    var nComplete = cell.data("nComplete");
+                    if (nStarted > nComplete) {
+                        cell.attr("fill", items[i].error ? _scaleConfig.cellErrorColor : _scaleConfig.cellLoadingColor);
+                    }
                 }
             }
         }
@@ -582,7 +590,16 @@ fi.fmi.metoclient.ui.animator.Controller = (function() {
                 var time = items[i].time.getTime();
                 var cell = getCellByTime(time);
                 if (cell) {
-                    cell.attr("fill", items[i].error ? _scaleConfig.cellErrorColor : _scaleConfig.cellReadyColor);
+                    var nComplete = cell.data("nComplete");
+                    nComplete += 1;
+                    cell.data("nComplete", nComplete);
+                    var nStarted = cell.data("nStarted");
+                    if (nComplete >= nStarted) {
+                        cell.attr("fill", items[i].error ? _scaleConfig.cellErrorColor : _scaleConfig.cellReadyColor);
+                        if (nComplete > nStarted) {
+                            console.error("BUG? complete: ", nComplete, "started: ", nStarted);
+                        }
+                    }
                 }
             }
         }
