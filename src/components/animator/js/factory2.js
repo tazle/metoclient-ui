@@ -318,8 +318,9 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
                         fillOutAnimation(options.animation, 'forecast');
                         console.log("Filled-out animation config for layer", name, options.animation);
                         var args = [name, url, params, options];
+                        var legendInfoProvider = createLegendInfoProvider(options.animation);
                         fillWmsDefaults(args);
-                        return createLayer(klass, name, args);
+                        return createLayer(klass, name, args, legendInfoProvider);
                     });
                     return layers[0];
                 }
@@ -329,7 +330,16 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
                 // TODO Implement
             }
 
-            function createLayer(klass, name, args) {
+            function createLegendInfoProvider(animation) {
+                if (animation.hasLegend) {
+                    // TODO Handle non-WMS/WMTS case
+                    return new OpenLayers.Layer.Animation.WMSWMTSLegendInfoProvider();
+                } else {
+                    return new OpenLayers.Layer.Animation.DisabledLegendInfoProvider();
+                }
+            }
+
+            function createLayer(klass, name, args, legendInfoProvider) {
                 // TODO Constraints and availability
                 var layerFactory = layerFactoryFor(klass, args);
 
@@ -342,6 +352,7 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
                     "retainPolicy" : retainer,
                     "fader" : fader,
                     "timeSelector" : previousTimeSelector,
+                    "legendInfoProvider" : legendInfoProvider,
                     "displayInLayerSwitcher" : false
                 });
             }
@@ -407,8 +418,10 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
                                     throw "Unknown class: " + config.className;
                                 }
 
+                                var legendInfoProvider = createLegendInfoProvider(animation);
+
                                 // TODO Hack, asssume args[0] is layer name
-                                var preloadingLayer = createLayer(klass, config.args[0], config.args);
+                                var preloadingLayer = createLayer(klass, config.args[0], config.args, legendInfoProvider);
 
                                 _constraints.timelines[preloadingLayer.name] = [preloadingLayer];
                                 observationLayers.push(preloadingLayer.name);
