@@ -471,6 +471,7 @@ fi.fmi.metoclient.ui.animator.Controller = (function() {
                         cell.data("endDate", cellEnd);
                         cell.data("nStarted", 0);
                         cell.data("nComplete", 0);
+                        cell.data("nErrors", 0);
 
                         jQuery(cell.node).mousewheel(handleMouseScroll);
                     }
@@ -588,12 +589,17 @@ fi.fmi.metoclient.ui.animator.Controller = (function() {
                 var time = items[i].time.getTime();
                 var cell = getCellByTime(time);
                 if (cell) {
+                    var nErrors = cell.data("nErrors");
+                    if (items[i].error) {
+                        nErrors += 1;
+                        cell.data("nErrors", nErrors);
+                    }
                     var nStarted = cell.data("nStarted");
                     nStarted += 1;
                     cell.data("nStarted", nStarted);
                     var nComplete = cell.data("nComplete");
                     if (nStarted > nComplete) {
-                        cell.attr("fill", items[i].error ? _scaleConfig.cellErrorColor : _scaleConfig.cellLoadingColor);
+                        cell.attr("fill", nErrors > 0 ? _scaleConfig.cellErrorColor : _scaleConfig.cellLoadingColor);
                     }
                 }
             }
@@ -605,12 +611,17 @@ fi.fmi.metoclient.ui.animator.Controller = (function() {
                 var time = items[i].time.getTime();
                 var cell = getCellByTime(time);
                 if (cell) {
+                    var nErrors = cell.data("nErrors");
+                    if (items[i].error) {
+                        nErrors += 1;
+                        cell.data("nErrors", nErrors);
+                    }
                     var nComplete = cell.data("nComplete");
                     nComplete += 1;
                     cell.data("nComplete", nComplete);
                     var nStarted = cell.data("nStarted");
                     if (nComplete >= nStarted) {
-                        cell.attr("fill", items[i].error ? _scaleConfig.cellErrorColor : _scaleConfig.cellReadyColor);
+                        cell.attr("fill", nErrors > 0 ? _scaleConfig.cellErrorColor : _scaleConfig.cellReadyColor);
                         if (nComplete > nStarted) {
                             console.error("BUG? complete: ", nComplete, "started: ", nStarted);
                         }
