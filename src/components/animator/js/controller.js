@@ -454,26 +454,36 @@ fi.fmi.metoclient.ui.animator.Controller = (function() {
                 var cellCount = Math.floor((end - begin) / resolution);
                 var cellWidth = getScaleAreaWidth() / cellCount;
                 for (var i = 0; i < cellCount; ++i) {
-                    // Try to find an existing cell first
                     var cellStart = begin + i * resolution;
                     var cellEnd = begin + (i+1) * resolution;
 
-                    var cell = findAndRemoveMatchingCell(oldCells, cellStart, cellEnd);
-                    if (cell === undefined) {
-                        // No matching old cell, create a new one
-                        cell = _paper.rect(beginX + i * cellWidth, beginY, cellWidth, _scaleConfig.progressCellHeight);
-                        cell.attr("fill", _scaleConfig.bgColor).attr("stroke-width", "0");
-                        // Notice, cell ID actually describes the time value in the end of the cell instead of the beginning.
-                        // Therefore (i+1) is used. Then, when cell content is loaded, the cell that ends to the selected time
-                        // is handled instead of handling cell ahead of the time.
-                        cell.node.id = "animationProgressCell_" + (begin + (i + 1) * resolution);
-                        cell.data("startDate", cellStart);
-                        cell.data("endDate", cellEnd);
+                    // Create a new cell
+                    var cell = _paper.rect(beginX + i * cellWidth, beginY, cellWidth, _scaleConfig.progressCellHeight);
+                    // Notice, cell ID actually describes the time value in the end of the cell instead of the beginning.
+                    // Therefore (i+1) is used. Then, when cell content is loaded, the cell that ends to the selected time
+                    // is handled instead of handling cell ahead of the time.
+                    cell.node.id = "animationProgressCell_" + (begin + (i + 1) * resolution);
+                    cell.data("startDate", cellStart);
+                    cell.data("endDate", cellEnd);
+                    jQuery(cell.node).mousewheel(handleMouseScroll);
+
+
+                    // Try to find an existing cell, to get nStarted, nComplete and fill color
+                    var oldCell = findAndRemoveMatchingCell(oldCells, cellStart, cellEnd);
+                    if (oldCell === undefined) {
+                        console.log("Initializing anew");
+                        // No matching old cell, init to zero
                         cell.data("nStarted", 0);
                         cell.data("nComplete", 0);
                         cell.data("nErrors", 0);
-
-                        jQuery(cell.node).mousewheel(handleMouseScroll);
+                        cell.attr("fill", _scaleConfig.bgColor).attr("stroke-width", "0");
+                    } else {
+                        // Init from old cell
+                        console.log("Initializing from old cell");
+                        cell.data("nStarted", oldCell.data("nStarted"));
+                        cell.data("nComplete", oldCell.data("nComplete"));
+                        cell.data("nErrors", oldCell.data("nErrors"));
+                        cell.attr("fill", oldCell.attr("fill")).attr("stroke-width", "0");
                     }
 
                     _progressCellSet.push(cell);
