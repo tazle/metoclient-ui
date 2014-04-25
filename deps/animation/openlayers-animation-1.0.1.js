@@ -666,6 +666,26 @@ OpenLayers.Layer.Animation = OpenLayers.Class(OpenLayers.Layer, {
 
 // "use strict";
 
+(function() {
+    OpenLayers.Layer.Animation.ControlLayer = OpenLayers.Class(OpenLayers.Layer, {
+
+        initialize : function(name, options) {
+            OpenLayers.Layer.prototype.initialize.call(this, name, options);
+
+            this._layers = options.layers; // Layers to control
+        },
+
+        setVisibility : function(visibility) {
+            OpenLayers.Layer.prototype.setVisibility.call(this, visibility);
+            _.each(this._layers, function(layer) {
+                layer.setVisibility(visibility);
+            });
+        }
+    });
+})();
+
+// "use strict";
+
 OpenLayers.Layer.Animation.Fader = OpenLayers.Class({
     /**
      * Interface for transitioning between two timesteps.
@@ -732,90 +752,190 @@ OpenLayers.Layer.Animation.TimedFader = OpenLayers.Class(OpenLayers.Layer.Animat
 
 // "use strict";
 
-OpenLayers.Layer.Animation.LayerGroupCoordinator = OpenLayers.Class({
+(function() {
 
-    /**
-     * @param {Array<Layer>} layers Array of layers that the coordinator should coordinate. Must noe be undefined or null.
-     * @param {Constraints} constraints Constraints object that defines visibility constraints between layers.
-     * @param {Object} availableRanges Mapping of layer name -> timestep, defines availability of data in the ranges.
-     */
-    initialize : function(layers, constraints, availableRanges) {
-        this._layers = {}; // Mapping layer id -> layer
-        this._constraints = undefined; // Set in update()
-        this._time = undefined; // Set in setTime()
-        _.each(layers, function(l) {this._layers[l.name] = l;}, this);
-        this.update(constraints, availableRanges);
-    },
-
-    // TODO Privatize properly
     // Ranges are described elsewhere
-    limitTimestep : function(timestepToLimit, limitRange) {
+    function limitTimestep(timestepToLimit, limitRange) {
         return timestep.restricted(limitRange[0], limitRange[1], timestepToLimit);
-    },
+    }
 
-    /**
-     * Get currently visible range groups.
-     *
-     * @return {Array<String>} Names of currently visible range
-     * groups. If time is not set or current time is not in any range
-     * group, an empty array is returned.
-     */
-    getCurrentRangeGroups : function() {
-        var result = [];
-        if (this._time !== undefined) {
-            _.each(this._constraints.rangeGroups, function(group, groupId) {
-                if (OpenLayers.Layer.Animation.Utils.inRange(this._time, group.range)) {
-                    result.push(groupId);
-                }
-            }, this);
-        }
-        return result;
-    },
+
+    OpenLayers.Layer.Animation.LayerGroupCoordinator = OpenLayers.Class({
+
+        /**
+         * @param {Array<Layer>} layers Array of layers that the coordinator should coordinate. Must noe be undefined or null.
+         * @param {Constraints} constraints Constraints object that defines visibility constraints between layers.
+         * @param {Object} availableRanges Mapping of layer name -> timestep, defines availability of data in the ranges.
+         */
+        initialize : function(layers, constraints, availableRanges) {
+            this._layers = {}; // Mapping layer id -> layer
+            this._constraints = undefined; // Set in update()
+            this._time = undefined; // Set in setTime()
+            _.each(layers, function(l) {this._layers[l.name] = l;}, this);
+            this.update(constraints, availableRanges);
+        },
+
+
+        /**
+         * Get currently visible range groups.
+         *
+         * @return {Array<String>} Names of currently visible range
+         * groups. If time is not set or current time is not in any range
+         * group, an empty array is returned.
+         */
+        getCurrentRangeGroups : function() {
+            var result = [];
+            if (this._time !== undefined) {
+                _.each(this._constraints.rangeGroups, function(group, groupId) {
+                    if (OpenLayers.Layer.Animation.Utils.inRange(this._time, group.range)) {
+                        result.push(groupId);
+                    }
+                }, this);
+            }
+            return result;
+        },
 
         // Constraint object:
         // - globalRange - all availableRanges are limited to this
         // - rangeGroups {groupName : {range:range, layers:layers}}
         //   - availableRanges are limited by the first rangeGroup.range whose .layers contains their id
-    update : function(constraints, availableRanges) {
-        console.log("Available ranges", availableRanges);
-        this._constraints = constraints;
-        var restrictedTimesteps = {};
-        _.each(availableRanges, function(timestep, layerName) {
-            var globallyLimitedTimestep = this.limitTimestep(timestep, constraints.globalRange);
-            var rangeGroupId = _.findKey(constraints.rangeGroups, function(rangeGroup) {
-                return _.contains(rangeGroup.layers, layerName);
+        // - timelines {timelineName : [layers]}
+        //   - visibility can be controlled per-timeline
+        //   - layers contains layer ids
+        update : function(constraints, availableRanges) {
+            console.log("Available ranges", availableRanges);
+            this._constraints = constraints;
+            var restrictedTimesteps = {};
+            _.each(availableRanges, function(timestep, layerName) {
+                var globallyLimitedTimestep = limitTimestep(timestep, constraints.globalRange);
+                var rangeGroupId = _.findKey(constraints.rangeGroups, function(rangeGroup) {
+                    return _.contains(rangeGroup.layers, layerName);
+                });
+
+                var result;
+                if (rangeGroupId === undefined) {
+                    result = globallyLimitedTimestep;
+                } else {
+                    result = limitTimestep(globallyLimitedTimestep, constraints.rangeGroups[rangeGroupId].range);
+                }
+                console.log("Limited", layerName, "from", timestep, "to", result);
+
+                restrictedTimesteps[layerName] = result;
+            }, this);
+
+            _.each(this._layers, function(layer, layerName) {
+                var limitedRange = restrictedTimesteps[layerName];
+                if (limitedRange !== undefined) {
+                    layer.setRange(limitedRange);
+                } else {
+                    throw "No limited range for layer " + layerName;
+                }
             });
+        },
 
-            var result;
-            if (rangeGroupId === undefined) {
-                result = globallyLimitedTimestep;
+
+        /**
+         * Set time for all layers.
+         */
+        setTime : function(t) {
+            this._time = t;
+            _.invoke(this._layers, "setTime", t);
+        },
+
+        
+        /**
+         * Get timeline names
+         */
+        getTimelines : function() {
+            return _.keys(this._constraints.timelines);
+        },
+
+        /**
+         * Set visibility of all layers of a timeline
+         *
+         * Throws an exception if the timeline is not defined.
+         */
+        setTimelineVisibility : function(timeline, visibility) {
+            var layerIds = this._constraints.timelines[timeline];
+            if (layerIds !== undefined) {
+                _.each();
             } else {
-                result = this.limitTimestep(globallyLimitedTimestep, constraints.rangeGroups[rangeGroupId].range);
+                throw "No timeline " + timeline;
             }
-            console.log("Limited", layerName, "from", timestep, "to", result);
+        }
 
-            restrictedTimesteps[layerName] = result;
-        }, this);
+        // TODO Allow access to timeline visibility
+        // TODO Generate events when timeline visibility changes
 
-        _.each(this._layers, function(layer, layerName) {
-            var limitedRange = restrictedTimesteps[layerName];
-            if (limitedRange !== undefined) {
-                layer.setRange(limitedRange);
-            } else {
-                throw "No limited range for layer " + layerName;
-            }
-        });
-    },
+    });
+})();
 
+// "use strict";
 
+OpenLayers.Layer.Animation.LegendInfoProvider = OpenLayers.Class({
     /**
-     * Set time for all layers.
+     * Interface for asking a layer to provider legend information to be shown alongside it.
+     *
+     * @param {Layer} layer Layer to provide legend info for
+     * @return {Array<LegendInfo>} Information about legends that should be shown for this layer
      */
-    setTime : function(t) {
-        this._time = t;
-        _.invoke(this._layers, "setTime", t);
+    provideLegendInfo : function(preloadingLayer) {
+        throw "This is an interface";
     }
+});
 
+OpenLayers.Layer.Animation.DisabledLegendInfoProvider = OpenLayers.Class(OpenLayers.Layer.Animation.LegendInfoProvider, {
+    initialize : function() {
+    },
+    provideLegendInfo : function(rangedLayer) {
+        return [];
+    }
+});
+
+OpenLayers.Layer.Animation.FixedLegendInfoProvider = OpenLayers.Class(OpenLayers.Layer.Animation.LegendInfoProvider, {
+    initialize : function(legendInfo) {
+        this.legendInfo = legendInfo;
+    },
+    provideLegendInfo : function(rangedLayer) {
+        return [this.legendInfo];
+    }
+});
+
+OpenLayers.Layer.Animation.WMSWMTSLegendInfoProvider = OpenLayers.Class(OpenLayers.Layer.Animation.LegendInfoProvider, {
+    initialize : function() {
+    },
+    provideLegendInfo : function(wmsLayer) {
+        var info = [];
+        var layerParams = wmsLayer.params;
+        var layerIdString = layerParams.LAYERS || layerParams.LAYER; // LAYERS for WMS, LAYER for WMTS
+        var layerIds = layerIdString.split(",");
+
+        var _url = wmsLayer.url;
+        if (typeof _url !== "string") {
+            _url = _url[0]; // There might in theory be multiple URLs
+        }
+
+        var params = OpenLayers.Util.getParameters(_url);
+        params.REQUEST = "GetLegendGraphic";
+        if (params.FORMAT === undefined) {
+            params.FORMAT = "image/png";
+        }
+
+        var urlParts = OpenLayers.Util.createUrlObject(_url);
+        _.each(layerIds, function(layerId) {
+            params.LAYER = layerId;
+            var url = urlParts.protocol + "//" + urlParts.host + ":" + urlParts.port + urlParts.pathname + "?" + OpenLayers.Util.getParameterString(params);
+            info.push({
+                // Name may be empty depending if it was originally given for layer.
+                name : wmsLayer.name,
+                url : url,
+                hasLegend : true
+            });
+            
+        });
+
+        return info;
+    }
 });
 
 // "use strict";
@@ -906,12 +1026,14 @@ OpenLayers.Layer.Animation.PreloadAll = OpenLayers.Class(OpenLayers.Layer.Animat
 
             this._layerFactory = options.layerFactory;
             this._layers = {}; // indexed by ISO 8601 time string
+            this._errors = {}; // latest errors of layers, indexed by ISO 8601 time string
             this._opacity = 1.0; // Not available through Layer, store locally
 
             this._preloadPolicy = options.preloadPolicy;
             this._retainPolicy = options.retainPolicy;
             this._fader = options.fader;
             this._timeSelector = options.timeSelector;
+            this._legendInfoProvider = options.legendInfoProvider;
 
             this._currentLayer = undefined; // set through setTime
             this._requestedTime = undefined; // set through setTime
@@ -933,8 +1055,22 @@ OpenLayers.Layer.Animation.PreloadAll = OpenLayers.Class(OpenLayers.Layer.Animat
         initLayer : function(layer) {
             if (this.map) {
                 var me = this;
-                layer.events.register("loadstart", this, function() {me.events.triggerEvent("frameloadstarted", {"layer":this, "events":[{"time":layer.getTime()}]});});
-                layer.events.register("loadend", this, function() {me.events.triggerEvent("frameloadcomplete", {"layer":this, "events":[{"time":layer.getTime()}]});});
+                
+                layer.events.register("loadstart", this, function() {
+                    var layerKey = layer.getTime().toISOString();
+                    this._errors[layerKey] = undefined; // Reset error at load start
+                    me.events.triggerEvent("frameloadstarted", {"layer":this, "events":[{"time":layer.getTime(), "layerName":layer.name}]});
+                });
+
+                layer.events.register("loadend", this, function() {
+                    var layerKey = layer.getTime().toISOString();
+                    me.events.triggerEvent("frameloadcomplete", {"layer":this, "events":[{"time":layer.getTime(), "layerName":layer.name, "error":this._errors[layerKey]}]});
+                });
+
+                layer.events.register("tileerror", this, function(e) {
+                    var layerKey = layer.getTime().toISOString();
+                    this._errors[layerKey] = e;
+                });
 
                 this.map.addLayer(layer);
             }
@@ -1072,6 +1208,15 @@ OpenLayers.Layer.Animation.PreloadAll = OpenLayers.Class(OpenLayers.Layer.Animat
         setZIndex : function(zIndex) {
             OpenLayers.Layer.prototype.setZIndex.call(this, zIndex);
             _.each(this._layers, this.reconfigureLayer, this);
+        },
+
+        /**
+         * Same as getLegendInfo in Animation.js
+         * TODO Move documentation here
+         */
+        getLegendInfo : function() {
+            var embeddedLayer = this._layerFactory(new Date());
+            return this._legendInfoProvider.provideLegendInfo(embeddedLayer);
         }
     });
 })();
