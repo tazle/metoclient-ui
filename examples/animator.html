@@ -33,6 +33,7 @@
 
         <!-- JavaScript libraries -->
         <script type="text/javascript" src="../dist/deps/lodash/lodash.compat-2.1.0-min.js"></script>
+        <script type="text/javascript" src="../dist/deps/timestep.js"></script>
         <script type="text/javascript" src="../dist/deps/OpenLayers-2.13.1/OpenLayers.js"></script>
         <script type="text/javascript" src="../dist/deps/jquery/jquery-1.10.2-min.js"></script>
         <script type="text/javascript" src="../dist/deps/jquery-mousewheel/jquery.mousewheel-min.js"></script>
@@ -45,23 +46,64 @@
         <script type="text/javascript">
             $(function() {
                 // When document is ready.
-                (new fi.fmi.metoclient.ui.animator.Animator()).init({
-                    // Animator content is inserted into container.
-                    // Default animator element structures are used here.
-                    animatorContainerDivId : "animatorContainerId",
-                    // Configuration defines map and layers for animator.
-                    // Notice, fi.fmi.metoclient.ui.animator.Config object is also used
-                    // as a default if config is not provided. But, this is shown here
-                    // as an example. Another config object may also be provided here.
-                    // See comments in fi.fmi.metoclient.ui.animator.Config for more detailed
-                    // description of the config object.
-                    config : fi.fmi.metoclient.ui.animator.Config,
-                    // Callback is mandatory if getConfig function needs to be used.
-                    callback : function(animator, errors) {
-                        // For example, animator map object is available after initialization.
-                        var map = animator.getConfig().getMap();
+
+                function read_url_params() {
+
+                    var params = {};
+
+                    if (location.search) {
+                        var parts = location.search.substring(1).split('&');
+
+                        for (var i = 0; i < parts.length; i++) {
+                            var nv = parts[i].split('=');
+                            if (!nv[0]) continue;
+                            params[nv[0]] = nv[1] || true;
+                        }
                     }
-                });
+
+                    return params;
+                }
+
+                function init_animator(config) {
+                    animator = new fi.fmi.metoclient.ui.animator.Animator();
+                    animator.init(
+                        {
+                            // Animator content is inserted into container.
+                            // Default animator element structures are used here.
+                            animatorContainerDivId : "animatorContainerId",
+                            // Configuration defines map and layers for animator.
+                            // Notice, fi.fmi.metoclient.ui.animator.Config object is also used
+                            // as a default if config is not provided. But, this is shown here
+                            // as an example. Another config object may also be provided here.
+                            // See comments in fi.fmi.metoclient.ui.animator.Config for more detailed
+                            // description of the config object.
+                            config : config,
+                            // Callback is mandatory if getConfig function needs to be used.
+                            callback : function(animator, errors) {
+                                // For example, animator map object is available after initialization.
+                                map = animator.getFactory().getMap();
+                            }
+                        });
+                }
+
+                var params = read_url_params();
+
+                if (params.conf !== undefined) {
+                    console.log("Fetching config from", params.conf);
+                    $.ajax(params.conf, {
+                        dataType: "json",
+                    }).done(function(conf) {
+                        console.log("Got config");
+                        init_animator(conf);
+                    }).fail(function(xhr, textStatus, errorThrown) {
+                        console.error("Failed to get config", xhr, textStatus, errorThrown);
+                        $("animatorContainerId").html("<p>Loading configuration failed</p>");
+                    });
+                } else {
+                    init_animator(fi.fmi.metoclient.ui.animator.Config);
+                }
+
+
             });
         </script>
     </head>
