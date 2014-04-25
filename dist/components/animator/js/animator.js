@@ -27,6 +27,11 @@
 // Strict mode for whole file.
 // "use strict";
 
+// Requires lo-dash
+if ("undefined" === typeof _ || !_) {
+    throw "ERROR: OpenLayers is required for fi.fmi.metoclient.ui.animator.WmsCapabilities!";
+}
+
 // Requires OpenLayers
 if ("undefined" === typeof OpenLayers || !OpenLayers) {
     throw "ERROR: OpenLayers is required for fi.fmi.metoclient.ui.animator.WmsCapabilities!";
@@ -84,16 +89,7 @@ fi.fmi.metoclient.ui.animator.WmsCapabilities = (function() {
     function handleCallback(callback, data, errors) {
         if (callback) {
             setTimeout(function() {
-                try {
-                    callback(data, errors);
-
-                } catch(e) {
-                    // Ignore errors that may occur in the callback.
-                    // Callback may be provided from outside of this library.
-                    if ("undefined" !== typeof console && console) {
-                        console.error("ERROR: Callback function error!");
-                    }
-                }
+                callback(data, errors);
             }, 0);
         }
     }
@@ -287,6 +283,56 @@ fi.fmi.metoclient.ui.animator.WmsCapabilities = (function() {
     }
 
     /**
+     * See API for function description.
+     */
+    function getDataMultiple(urls, _onComplete, params) {
+        var onComplete = _.once(_onComplete);
+        var results = {
+            nComplete: 0,
+            capabilities: [],
+            errors: []
+        };
+
+        var nRequests = urls.length;
+
+        try {
+            _.each(urls, function(url) {
+                // Start asynchronous operation.
+                fi.fmi.metoclient.ui.animator.WmsCapabilities.getData({
+                    url: url,
+                    callback: function(capabilities, errors) {
+                        if (capabilities !== undefined) {
+                            results.capabilities.push({url: url, capabilities: capabilities});
+                        }
+                        _.each(errors, function(error) {
+                            results.errors.push(error);
+                        });
+                        results.nComplete += 1;
+
+                        if (results.nComplete === nRequests) {
+                            onComplete(results.capabilities, results.errors);
+                        }
+                    },
+                    params: params
+                });
+            });
+        } catch(e) {
+            // Asynchronize error
+            results.errors.push("ERROR: Error while starting GetCapabilities requests");
+            setTimeout(function() {
+                onComplete(results.capabilities, results.errors);
+            }, 0);
+        }
+
+        if (results.nComplete === nRequests) {
+            // When nRequests == 0
+            setTimeout(function() {
+                onComplete(results.capabilities, results.errors);
+            }, 0);
+        }
+    }
+
+    /**
      * ============================
      * Public API is returned here.
      * ============================
@@ -339,6 +385,27 @@ fi.fmi.metoclient.ui.animator.WmsCapabilities = (function() {
          *     }
          */
         getData : getData,
+
+        /**
+         * Do GetCapabilities request to given URLs. Call callback when complete.
+         *
+         * @param {Array} urls Array of Strings containing URLs to fetch. Must not be undefined or null. May be empty.
+         *
+         *
+         * @param {Function} _onComplete Callback, called when all requests have been completed.
+         *                               Signature: _onComplete(capabilities, errors).
+         *
+         *                               capabilities is an array of objects of form {
+         *                                   url: url,
+         *                                   capabilities: WmsCapabilities.getData result
+         *                               }.
+         *
+         *                               Undefined results are not included.
+         *
+         *                               errors is an array of strings that describe any errors that occurred.
+         * @param {Array} params Same as options.params of getData
+         */
+        getDataMultiple : getDataMultiple,
 
         /**
          * Get URL that is used for capabilities request.
@@ -402,6 +469,11 @@ fi.fmi.metoclient.ui.animator.WmsCapabilities = (function() {
 
 // "use strict";
 
+// Requires lodash
+if ("undefined" === typeof _ || !_) {
+    throw "ERROR: Lodash is required for fi.fmi.metoclient.ui.animator.Animator!";
+}
+
 // Requires OpenLayers
 if ( typeof OpenLayers === "undefined" || !OpenLayers) {
     throw "ERROR: OpenLayers is required for fi.fmi.metoclient.ui.animator.Factory!";
@@ -434,53 +506,6 @@ if ("undefined" === typeof fi.fmi.metoclient.ui.animator.WmsCapabilities || !fi.
  */
 fi.fmi.metoclient.ui.animator.Factory = (function() {
 
-    // Private constants.
-
-    // If configuration uses auto for time value,
-    // capabilities is used to get the proper time.
-    var CAPABILITY_TIME_AUTO = "auto";
-
-    // If configuration sub-layer uses join for time value,
-    // capabilities is used to get the proper begin time
-    // for the sub-layer.
-    var CAPABILITY_TIME_JOIN = "join";
-
-    /**
-     * @private
-     *
-     * Function to provide {bind} if an older browser does not support it natively.
-     *
-     * This will provide IE8+ support.
-     * See, https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Function/bind
-     *
-     * This function is called during the construction of this singleton instance to make sure
-     * function is available.
-     */
-    (function() {
-        if (!Function.prototype.bind) {
-            Function.prototype.bind = function(oThis) {
-                if ("function" !== typeof this) {
-                    // closest thing possible to the ECMAScript 5 internal IsCallable function
-                    throw "Function.prototype.bind - what is trying to be bound is not callable";
-                }
-
-                var aArgs = Array.prototype.slice.call(arguments, 1);
-                var fToBind = this;
-                var fNOP = function() {
-                };
-                var fBound = function() {
-                    return fToBind.apply(this instanceof fNOP && oThis ? this : oThis, aArgs.concat(Array.prototype.slice.call(arguments)));
-                };
-
-                fNOP.prototype = this.prototype;
-                var FNOP = fNOP;
-                fBound.prototype = new FNOP();
-
-                return fBound;
-            };
-        }
-    })();
-
     /**
      * @private
      *
@@ -492,6 +517,7 @@ fi.fmi.metoclient.ui.animator.Factory = (function() {
      *                             Operation is ignored if {undefined}, {null}, zero or negative value.
      */
     function floorDate(date, resolution) {
+        // TODO Move date manipulation to a utility class
         if (date && resolution && resolution > 0) {
             var time = date.getTime();
             if (time !== resolution) {
@@ -515,6 +541,7 @@ fi.fmi.metoclient.ui.animator.Factory = (function() {
      *                             Operation is ignored if {undefined}, {null}, zero or negative value.
      */
     function ceilDate(date, resolution) {
+        // TODO Move date manipulation to a utility class
         if (date && resolution && resolution > 0) {
             var time = date.getTime();
             if (time !== resolution) {
@@ -527,48 +554,25 @@ fi.fmi.metoclient.ui.animator.Factory = (function() {
         }
     }
 
+
     /**
      * Constructor for new instance.
      * This function provides the public API and also contains private instance specific functionality.
      *
-     * @param {Object} configuration Map and layer configuration object.
-     *                               May be {undefined} or {null} but then operations are ignored.
+     * @param {Object} configuration ConfigLoader object. Must not be undefined or null.
      */
-    var _constructor = function(configuration) {
+    var _constructor = function(configLoader) {
         // Private member variables.
         //--------------------------
         var _me = this;
 
         // Map and layer configuration object.
-        var _config = configuration;
-
-        // Error objects of asynchronous operations.
-        var _errors = [];
-        // Async counter for on-going asynchronous operations.
-        var _asyncCounter = 0;
-
-        // Capabilities data for configurations.
-        // Capabilities objects wrap requested capabilities and
-        // other capability related information. Capability objects
-        // are set into this array during asynchronous initialization.
-        var _capabilitiesContainer = [];
+        var _configLoader = configLoader;
 
         // OpenLayers related map and layers variables.
         // See corresponding get functions below to create content.
         var _map;
         var _layers = [];
-
-        // Animation setting related variables that are initialized
-        // when corresponding get functions are called first time.
-        var _resolution;
-        var _beginDate;
-        var _endDate;
-
-        // Forecast starts from current time as a default.
-        // But, layers may define other forecast begin times.
-        // Current time or the smallest forecast time from
-        // layers is used for the whole animation.
-        var _forecastBeginDate = new Date();
 
         // Private member functions.
         //--------------------------
@@ -588,11 +592,11 @@ fi.fmi.metoclient.ui.animator.Factory = (function() {
         var constructorWrapper = function(constructor, args) {
             var wrapper;
             if (constructor) {
-                var params = [constructor];
+                var params = [constructor, constructor];
                 if (args) {
                     params = params.concat(args);
                 }
-                wrapper = constructor.bind.apply(constructor, params);
+                wrapper = _.bind.apply(_, params);
             }
             return wrapper;
         };
@@ -628,603 +632,6 @@ fi.fmi.metoclient.ui.animator.Factory = (function() {
             return instance;
         };
 
-        /**
-         * Asynchronously handles the callback and possible error situations there.
-         *
-         * @param {function(data, errors)} callback Callback function that is called.
-         *                                          Operation is ignored if {undefined} or {null}.
-         */
-        var handleCallback = function(callback) {
-            if (callback) {
-                setTimeout(function() {
-                    try {
-                        callback(_me, _errors);
-
-                    } catch(e) {
-                        // Ignore errors that may occur in the callback.
-                        // Callback may be provided from outside of this library.
-                        if ("undefined" !== typeof console && console) {
-                            console.error("ERROR: Callback function error!");
-                        }
-                    }
-                }, 0);
-            }
-        };
-
-        /**
-         * @return {Array} Array of capability objects from the configuration object.
-         *                 Array is always given even if it may be empty.
-         */
-        function getConfigCapabilities() {
-            var capabilities = [];
-            if (_config && _config.layers && _config.layers.length) {
-                for (var i = 0; i < _config.layers.length; ++i) {
-                    var layer = _config.layers[i];
-                    if (layer) {
-                        var capability = layer.capabilities;
-                        if (capability) {
-                            capabilities.push(capability);
-                        }
-                    }
-                }
-            }
-            return capabilities;
-        }
-
-        /**
-         * @return {Array} Array of unique capability URL strings from the configuration object.
-         *                 Array is always given even if it may be empty.
-         */
-        function getConfigCapabilitiesUrls() {
-            var urls = [];
-            var capabilities = getConfigCapabilities();
-            for (var i = 0; i < capabilities.length; ++i) {
-                var capability = capabilities[i];
-                if (capability && capability.url) {
-                    // Check if an exactly same URL already exists.
-                    var urlExists = false;
-                    for (var j = 0; j < urls.length; ++j) {
-                        if (capability.url === urls[j]) {
-                            urlExists = true;
-                            break;
-                        }
-                    }
-                    if (!urlExists) {
-                        // Add new URL.
-                        urls.push(capability.url);
-                    }
-                }
-            }
-            return urls;
-        }
-
-        /**
-         * @param {String} layer Layer identifier.
-         *                       Operation is ignored if {undefined}, {null} or {empty}.
-         * @param {String} url URL used for capability request.
-         *                     Proper capability object, that contains information for layer,
-         *                     is identified by the URL.
-         *                     Operation is ignored if {undefined}, {null} or {empty}.
-         * @return {Object} Layer from the loaded capabilities.
-         *                  See {fi.fmi.metoclient.ui.animator.WmsCapabilities.getLayer}.
-         *                  May be {undefined} if layer is not found.
-         */
-        function getCapabilityLayer(layer, url) {
-            var capabilityLayer;
-            if (layer && url) {
-                for (var i = 0; i < _capabilitiesContainer.length; ++i) {
-                    var capas = _capabilitiesContainer[i];
-                    if (capas) {
-                        var capabilities = capas.capabilities;
-                        if (capabilities && url === capas.url) {
-                            var capaLayer = fi.fmi.metoclient.ui.animator.WmsCapabilities.getLayer(capabilities, layer);
-                            // Notice, checking is finished if layer is found.
-                            // There should be only one match and other URL matches should not exist
-                            // in the capabilities array. But, continue search if layer is not found
-                            // just to be sure even if capabilities URL matched because this is not
-                            // performance critical check.
-                            if (capaLayer) {
-                                capabilityLayer = capaLayer;
-                                // Layer was found here. No need to continue.
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
-            return capabilityLayer;
-        }
-
-        /**
-         * Check the forecast begin date from the configuration.
-         *
-         * The forecast begin date is updated by the smallest begin date from the layers
-         * that have been defined as forecasts if any is found.
-         *
-         * Notice, this should be called only after {checkConfiguration} has checked
-         * the animation layer time values.
-         */
-        function checkForecastBeginDate() {
-            if (_config && _config.layers && _config.layers.length) {
-                // The default forecast begin date is ceiled on the resolution.
-                // Then, the forecast begins on the animation step that shows the
-                // first forecast data. For example, first step after the present
-                // moment or exactly on it if present is exactly on the resolution.
-                // Also, animation layer specific checks floor the forecast
-                // begin date similarly on the first forecast step below.
-                ceilDate(_forecastBeginDate, getAnimationResolution());
-
-                // Check all the configuration layers.
-                // The forecast begin date is the smallest date for the layer
-                // that has been defined as forecast.
-                for (var i = 0; i < _config.layers.length; ++i) {
-                    var layer = _config.layers[i];
-                    if (layer) {
-                        // Layers are created by providing arguments list in configuration.
-                        for (var j = 0; j < layer.args.length; ++j) {
-                            var arg = layer.args[j];
-                            if (arg) {
-                                var animation = arg.animation;
-                                // Notice, the value is always resetted below before using it to update layer properties.
-                                // So, no need to reset value to undefined here.
-                                var tmpBeginDate;
-                                // Check from the given arguments if any of them contains animation configuration.
-                                if (animation) {
-                                    // Make sure resolution times are used properly when times are adjusted.
-                                    // This provides layer specific resolution if available.
-                                    var animationResolutionTime = animation.resolutionTime;
-                                    if (undefined === animationResolutionTime) {
-                                        animationResolutionTime = getAnimationResolution();
-                                        if (undefined === animationResolutionTime) {
-                                            throw "ERROR: Animation resolution time missing!";
-                                        }
-                                    }
-                                    // Check begin time only from the layer that defines itself as a forecast.
-                                    if (animation.isForecast) {
-                                        // If begin time is available, make sure Date instance is used.
-                                        if (undefined !== animation.beginTime) {
-                                            // New date object is created for tmp date instead of using reference to existing object.
-                                            tmpBeginDate = animation.beginTime instanceof Date ? new Date(animation.beginTime.getTime()) : new Date(animation.beginTime);
-
-                                        } else {
-                                            // Begin time was not defined for layer.
-                                            // Then, animation level begin time is used for that layer.
-                                            tmpBeginDate = getAnimationBeginDate();
-                                        }
-                                        // Layer animation begin times are floored when layers are created.
-                                        // Floor forecast begin date similarly. Then, layer specific checking can be done.
-                                        floorDate(tmpBeginDate, animationResolutionTime);
-                                        // Update forecast begin time if the layer has begin time that is smaller than previously set value.
-                                        if (undefined !== tmpBeginDate && (undefined === _forecastBeginDate || _forecastBeginDate.getTime() > tmpBeginDate.getTime())) {
-                                            // Forecast begin time is always Date instance.
-                                            _forecastBeginDate = tmpBeginDate;
-                                        }
-                                    }
-                                    // Check also sub-layers of the animation layer.
-                                    // Sub-layer may be forecast even if parent is not.
-                                    if (animation.layers) {
-                                        for (var k = 0; k < animation.layers.length; ++k) {
-                                            var subLayer = animation.layers[k];
-                                            // Check begin time from the sub-layer that defines itself as a forecast
-                                            // or whose parent is a forecast.
-                                            if (subLayer && (subLayer.isForecast || animation.isForecast)) {
-                                                // If begin time is available, make sure Date instance is used.
-                                                // Notice, sub-layer shold always have begin time set.
-                                                if (undefined !== subLayer.beginTime) {
-                                                    // New date object is created for tmp date instead of using reference to existing object.
-                                                    tmpBeginDate = subLayer.beginTime instanceof Date ? new Date(subLayer.beginTime.getTime()) : new Date(subLayer.beginTime);
-
-                                                } else {
-                                                    // Begin time was not defined for layer.
-                                                    // Then, animation level begin time is used for that layer.
-                                                    // Sub-layer should always have begin time configured. So, we should not come here.
-                                                    tmpBeginDate = getAnimationBeginDate();
-                                                }
-                                                // Layer animation begin times are floored when layers are created.
-                                                // Floor forecast begin date similarly. Then, layer specific checking can be done.
-                                                floorDate(tmpBeginDate, animationResolutionTime);
-                                                // Update forecast begin time if the layer has begin time that is smaller than previously set value.
-                                                if (undefined !== tmpBeginDate && (undefined === _forecastBeginDate || _forecastBeginDate.getTime() > tmpBeginDate.getTime())) {
-                                                    // Forecast begin time is always Date instance.
-                                                    _forecastBeginDate = tmpBeginDate;
-                                                }
-                                            }
-                                        }
-                                    }
-                                    // Use the first animation that is found from the arguments.
-                                    // Therefore, no need to browse other arguments through any more.
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        /**
-         * Check given {animation} and fine-tune times by using capability information for the layer.
-         *
-         * If animation times contain capability time strings,
-         * they are replaced by proper times from the capabilities information.
-         *
-         * @param {Object} timeInfo Configuration sub-object that contains time properties
-         *                          that are set if necessary.
-         *                          Operation is ignored if {undefined} or {null}.
-         * @param {Object} capabilityLayer Layer object gotten from capabilities.
-         *                                 See {getCapabilityLayer} function.
-         *                                 Operation is ignored if {undefined} or {null}.
-         * @param {Integer} resolution Animation resolution time.
-         *                             May be {undefined} or {null} that are handled as zero.
-         */
-        function checkAnimationConfigTimes(timeInfo, capabilityLayer, resolution) {
-            if (timeInfo && capabilityLayer) {
-                if (timeInfo.beginTime === CAPABILITY_TIME_AUTO) {
-                    timeInfo.beginTime = fi.fmi.metoclient.ui.animator.WmsCapabilities.getBeginTime(capabilityLayer);
-                    // Because begin times are floored on resolution when layers are created,
-                    // make sure begin time is within capability limits by ceiling it here.
-                    ceilDate(timeInfo.beginTime, resolution);
-                }
-                if (timeInfo.endTime === CAPABILITY_TIME_AUTO) {
-                    timeInfo.endTime = fi.fmi.metoclient.ui.animator.WmsCapabilities.getEndTime(capabilityLayer);
-                    // Because end times are ceiled on resolution when layers are created,
-                    // make sure end time is within capability limits by flooring it here.
-                    floorDate(timeInfo.endTime, resolution);
-                }
-            }
-        }
-
-        /**
-         * Check given {animation} and fine-tune values according to the capability information.
-         *
-         * @param {Object} animation Configuration sub-object that contains time properties
-         *                           that are set if necessary.
-         *                           Operation is ignored if {undefined} or {null}.
-         * @param {Object} capability Configuration sub-object that contains capability information.
-         *                            Operation is ignored if {undefined} or {null}.
-         */
-        function checkConfigurationAnimation(animation, capability) {
-            if (animation && capability && capability.url && capability.layer) {
-                // Layer configuration provides enough information
-                // to get capabilites information from the loaded capabilities.
-                var capabilityLayer = getCapabilityLayer(capability.layer, capability.url);
-                if (capabilityLayer) {
-                    // Make sure resolution times are used properly when times are adjusted.
-                    var animationResolutionTime = animation.resolutionTime;
-                    if (undefined === animationResolutionTime) {
-                        animationResolutionTime = getAnimationResolution();
-                        if (undefined === animationResolutionTime) {
-                            throw "ERROR: Animation resolution time missing!";
-                        }
-                    }
-                    checkAnimationConfigTimes(animation, capabilityLayer, animationResolutionTime);
-                    // Check animation sub-layers.
-                    if (animation.layers) {
-                        for (var i = 0; i < animation.layers.length; ++i) {
-                            var subLayer = animation.layers[i];
-                            if (subLayer && subLayer.layer) {
-                                // Sub-layer capability layer information can be gotten by using sublayer ID
-                                // and parent layer capability URL.
-                                checkAnimationConfigTimes(subLayer, getCapabilityLayer(subLayer.layer, capability.url), animationResolutionTime);
-                                if (subLayer.beginTime === CAPABILITY_TIME_JOIN) {
-                                    // Notice, if join is used, the value set for the parent end time does not matter.
-                                    // Parent end time defines end time for the whole animation, including sub layers.
-                                    // Join can not be done after whole animation. Instead, end time of the parent
-                                    // capability needs to be used to join sub-animation into the middle of the animation.
-                                    subLayer.beginTime = fi.fmi.metoclient.ui.animator.WmsCapabilities.getEndTime(capabilityLayer);
-                                    if (undefined !== subLayer.beginTime) {
-                                        // Notice, configuration animation resolution and capabilities resolution
-                                        // may define different values. Animation may use greater resolution.
-                                        // Make sure that first frame of animation sub-layer and last frame of
-                                        // parent layer will not overlap. Just in case begin time is on the configuration
-                                        // resolution, increase time by one. Then, parent layer end time uses capability
-                                        // value and sub layer first time after that. In other cases, parent time is
-                                        // floored normally on resolution and sub layer time is ceiled to next value.
-                                        subLayer.beginTime = new Date(subLayer.beginTime.getTime() + 1);
-                                        ceilDate(subLayer.beginTime, animationResolutionTime);
-
-                                    } else {
-                                        throw "ERROR: Animation sub-layer missing capability begin time!";
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        /**
-         * Check if configuration object content needs to be tuned.
-         *
-         * Configuration layer times are updated according to capabilities.
-         */
-        function checkConfiguration() {
-            try {
-                if (_capabilitiesContainer.length && _config && _config.layers) {
-                    for (var i = 0; i < _config.layers.length; ++i) {
-                        var layer = _config.layers[i];
-                        if (layer && layer.args) {
-                            // Layers are created by providing arguments list in configuration.
-                            // Check from the given arguments if any of them contains animation configuration.
-                            for (var j = 0; j < layer.args.length; ++j) {
-                                var arg = layer.args[j];
-                                if (arg) {
-                                    var animation = arg.animation;
-                                    if (animation) {
-                                        checkConfigurationAnimation(animation, layer.capabilities);
-                                        // Use the first animation that is found from the arguments.
-                                        // Therefore, no need to browse other arguments through any more.
-                                        break;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Check and set if configuration defines forecast begin dates.
-                // Notice, this is called after checkConfiguration has checked
-                // the animation layer time values.
-                checkForecastBeginDate();
-
-            } catch(e) {
-                var errorStr = "ERROR: Configuration check failed: " + e.toString();
-                if ("undefined" !== typeof console && console) {
-                    console.error(errorStr);
-                }
-                _errors.push(errorStr);
-            }
-        }
-
-        /**
-         * Initializes capabilities with the given {capabilities} object.
-         *
-         * Callback is used to inform that flow has finished.
-         *
-         * @param {Function} callback See {initCapabilities} function for callback description.
-         * @param {Object} capabilities Capabilities wrapper object. May be {undefined} or {null}.
-         * @param {Array} errors See {init} function for callback {errors} description.
-         *                       May be {undefined} or {null}.
-         */
-        function capabilitiesCallback(callback, capabilities, errors) {
-            if (_asyncCounter > 0) {
-                // Decrease the counter because an asynchronous operation has finished.
-                --_asyncCounter;
-            }
-
-            if (capabilities) {
-                _capabilitiesContainer.push(capabilities);
-            }
-            if (errors) {
-                // Update error and capabilities content.
-                _errors.push.apply(_errors, errors);
-            }
-
-            // Check if all asynchronous operations have finished.
-            if (0 === _asyncCounter) {
-                // Just to be sure that if for some reason we come here twice,
-                // callback is only called the first time.
-                _asyncCounter = -1;
-
-                // Check and fine tune configuration before final callback
-                // to inform that capabilites are handled.
-                checkConfiguration();
-
-                // All asynchronous operations have finished.
-                // Finish the flow by calling the callback.
-                handleCallback(callback);
-            }
-        }
-
-        /**
-         * Start asynchronous operation to get capabilitis data.
-         *
-         * @param {Function} callback See {initCapabilities} function for callback description.
-         * @param {String} url URL used for capability request.
-         *                     May not be {undefined}, {null} or empty.
-         */
-        function getCapabilitiesData(callback, url) {
-            // Callback for capabilities operations.
-            var optionsCallback = function(capabilities, errors) {
-                // Wrap capabilities related information into object.
-                var capabilitiesWrapper = {
-                    url : url,
-                    capabilities : capabilities
-                };
-                capabilitiesCallback(callback, capabilitiesWrapper, errors);
-            };
-
-            // Options to get capabilities data.
-            var options = {
-                url : url,
-                callback : optionsCallback
-            };
-
-            // Start asynchronous operation.
-            fi.fmi.metoclient.ui.animator.WmsCapabilities.getData(options);
-        }
-
-        /**
-         * Request capabilities information according to the configurations of this factory.
-         *
-         * Asynchronous function.
-         *
-         * @param {Function} callback See {init} function for callback description.
-         */
-        function initCapabilities(callback) {
-            // Reset previous capabilities state.
-            _capabilitiesContainer = [];
-
-            // Exception handler function that is used inside the loop.
-            var handleExceptionInLoop = function(e) {
-                // An error has occurred in synchronous part before starting asynchronous operation.
-                // Handle the case as if asynchronous operation would have finished. Then, flow
-                // continues if another asynchronous operation is going on or about to be started.
-                // Otherwise, flow ends normally.
-                setTimeout(function() {
-                    capabilitiesCallback(callback, undefined, ["ERROR: Error init capabilities: " + e.toString()]);
-                }, 0);
-            };
-
-            // There may be multiple asynchronous operations started.
-            // Counter is initialized with the total count. Then, catch can
-            // handle synchronous exceptions as if asynchronous operation would
-            // have finished and one fail does not stop the whole flow if other
-            // asynchronous operations are going-on or about to be started.
-            var capabilitiesUrls = getConfigCapabilitiesUrls();
-            _asyncCounter = capabilitiesUrls.length;
-            if (capabilitiesUrls.length) {
-                for (var i = 0; i < capabilitiesUrls.length; ++i) {
-                    try {
-                        getCapabilitiesData(callback, capabilitiesUrls[i]);
-
-                    } catch(e) {
-                        handleExceptionInLoop(e);
-                    }
-                }
-
-            } else {
-                // No capabilities to load.
-                // Finish flow asynchronously.
-                setTimeout(function() {
-                    capabilitiesCallback(callback, undefined, []);
-                }, 0);
-            }
-        }
-
-        /**
-         * Check layer configurations through and find the greatest value for resolution if any.
-         *
-         * @return {Integer} Resolution value.
-         *                   May be {undefined}.
-         */
-        function getAnimationResolutionFromLayers() {
-            var resolution;
-            if (_config) {
-                var layerConfigs = _config.layers;
-                if (layerConfigs) {
-                    // Configurations are provided for layers.
-                    // Check all the layers through.
-                    for (var i = 0; i < layerConfigs.length; ++i) {
-                        var config = layerConfigs[i];
-                        if (config && config.args) {
-                            // Layers are created by providing arguments list in configuration.
-                            // Check from the given arguments if any of them contains animation configuration.
-                            for (var j = 0; j < config.args.length; ++j) {
-                                var arg = config.args[j];
-                                if (arg) {
-                                    var animation = arg.animation;
-                                    if (animation) {
-                                        // Animation configuration is given. Check if resolution is also given for the animation.
-                                        if (!resolution || animation.resolutionTime !== undefined && animation.resolutionTime !== null && resolution < animation.resolutionTime) {
-                                            // Take the greatest resolution of them all.
-                                            resolution = animation.resolutionTime;
-                                        }
-                                        // Use the first animation that is found from the arguments.
-                                        // Therefore, no need to browse other arguments through any more.
-                                        break;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            return resolution;
-        }
-
-        /**
-         * Check layer configurations through and find the smallest value for animation begin date if any.
-         *
-         * @return {Date} Begin date. May be {undefined}.
-         *                New date object is created and returned date is not reference to any layer object.
-         */
-        function getAnimationBeginDateFromLayers() {
-            var date;
-            if (_config) {
-                var layerConfigs = _config.layers;
-                if (layerConfigs) {
-                    for (var i = 0; i < layerConfigs.length; ++i) {
-                        var config = layerConfigs[i];
-                        if (config && config.args) {
-                            // Layers are created by providing arguments list in configuration.
-                            // Check from the given arguments if any of them contains animation configuration.
-                            for (var j = 0; j < config.args.length; ++j) {
-                                var arg = config.args[j];
-                                if (arg) {
-                                    var animation = arg.animation;
-                                    if (animation) {
-                                        if (animation.beginTime !== undefined && animation.beginTime !== null) {
-                                            var tmpDate = animation.beginTime;
-                                            if (!( tmpDate instanceof Date)) {
-                                                tmpDate = new Date(tmpDate);
-                                            }
-                                            if (date === undefined || tmpDate.getTime() < date.getTime()) {
-                                                // Take the smallest date of them all.
-                                                // Make sure time is a copy of the original time.
-                                                // Then, reference to the original object is not returned.
-                                                date = new Date(tmpDate.getTime());
-                                            }
-                                        }
-                                        // Use the first animation that is found from the arguments.
-                                        // Therefore, no need to browse other arguments through any more.
-                                        break;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            return date;
-        }
-
-        /**
-         * Check layer configurations through and find the greatest value for animation end date if any.
-         *
-         * @return {Date} End date. May be {undefined}.
-         *                New date object is created and returned date is not reference to any layer object.
-         */
-        function getAnimationEndDateFromLayers() {
-            var date;
-            if (_config) {
-                var layerConfigs = _config.layers;
-                if (layerConfigs) {
-                    for (var i = 0; i < layerConfigs.length; ++i) {
-                        var config = layerConfigs[i];
-                        if (config && config.args) {
-                            // Layers are created by providing arguments list in configuration.
-                            // Check from the given arguments if any of them contains animation configuration.
-                            for (var j = 0; j < config.args.length; ++j) {
-                                var arg = config.args[j];
-                                if (arg) {
-                                    var animation = arg.animation;
-                                    if (animation) {
-                                        if (animation.endTime !== undefined && animation.endTime !== null) {
-                                            var tmpDate = animation.endTime;
-                                            if (!( tmpDate instanceof Date)) {
-                                                tmpDate = new Date(tmpDate);
-                                            }
-                                            if (date === undefined || tmpDate.getTime() > date.getTime()) {
-                                                // Take the greatest date of them all.
-                                                // Make sure time is a copy of the original time.
-                                                // Then, reference to the original object is not returned.
-                                                date = new Date(tmpDate.getTime());
-                                            }
-                                        }
-                                        // Use the first animation that is found from the arguments.
-                                        // Therefore, no need to browse other arguments through any more.
-                                        break;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            return date;
-        }
 
         // Public functions for API.
         // ------------------------
@@ -1233,6 +640,7 @@ fi.fmi.metoclient.ui.animator.Factory = (function() {
          * See API for function description.
          */
         function getMap() {
+            var _config = _configLoader.getConfig();
             // Create map if it has not been created yet.
             if (!_map && _config && _config.map && _config.map.className) {
                 var args;
@@ -1255,8 +663,9 @@ fi.fmi.metoclient.ui.animator.Factory = (function() {
          * See API for function description.
          */
         function getLayers() {
-            // Create layers only if map is available and if layers have not been created before.
-            if (getMap() && _config && _config.layers && _layers.length === 0) {
+            var _config = _configLoader.getConfig();
+            // Create layers only if layers have not been created before.
+            if (_config && _config.layers && _layers.length === 0) {
                 var layerConfigs = _config.layers;
                 // Layer is defined outside of loop and reseted to undefined
                 // inside the loop to make sure value is correct for every loop.
@@ -1276,16 +685,16 @@ fi.fmi.metoclient.ui.animator.Factory = (function() {
                                     // Check animation resolution of the layer.
                                     if (animation.resolutionTime === undefined) {
                                         // Make sure that at least a default resolution is set for animation layer.
-                                        animation.resolutionTime = getAnimationResolution();
+                                        animation.resolutionTime = _configLoader.getAnimationResolution();
                                     }
                                     // Check if layer configuration has set begin and end times for animation.
                                     // If whole animation has the values but layer itself does not,
                                     // use animation values also for the layer as default.
                                     if (animation.beginTime === undefined) {
-                                        animation.beginTime = getAnimationBeginDate();
+                                        animation.beginTime = _configLoader.getAnimationBeginDate();
                                     }
                                     if (animation.endTime === undefined) {
-                                        animation.endTime = getAnimationEndDate();
+                                        animation.endTime = _configLoader.getAnimationEndDate();
                                     }
                                     if (animation.resolutionTime) {
                                         // Make sure that animation begin time of the layer is set on the correct resolution time.
@@ -1319,198 +728,489 @@ fi.fmi.metoclient.ui.animator.Factory = (function() {
             return _layers;
         }
 
-        /**
-         * See API for function description.
-         */
-        function getDefaultZoomLevel() {
-            return _config ? _config.defaultZoomLevel : undefined;
-        }
-
-        /**
-         * See API for function description.
-         */
-        function getAnimationFrameRate() {
-            return _config ? _config.animationFrameRate : undefined;
-        }
-
-        /**
-         * See API for function description.
-         */
-        function getAnimationResolution() {
-            // Set resolution once.
-            if (_resolution === undefined) {
-                _resolution = _config ? _config.animationResolutionTime : undefined;
-                if (!_resolution) {
-                    // Because resolution was not defined for animation,
-                    // check it from layer configurations.
-                    _resolution = getAnimationResolutionFromLayers();
-                    if (!_resolution) {
-                        throw "ERROR: Animation configuration missing resolution time!";
-                    }
-                }
-            }
-            return _resolution;
-        }
-
-        /**
-         * See API for function description.
-         */
-        function getAnimationBeginDate() {
-            // Set begin date once.
-            if (undefined === _beginDate && _config) {
-                // Check if time has been given directly for the animation.
-                if (undefined !== _config.animationDeltaToBeginTime) {
-                    // Use animation setting.
-                    // Notice, positive value of begin time is towards past.
-                    // Negative value may be used if begin time should be in the future.
-                    _beginDate = new Date();
-                    if (_config.animationDeltaToBeginTime) {
-                        // Positive delta value given.
-                        _beginDate.setTime(_beginDate.getTime() - _config.animationDeltaToBeginTime);
-                        floorDate(_beginDate, getAnimationResolution());
-
-                    } else {
-                        // Zero value for delta is a special case because it informs that observed data is not wanted.
-                        // Notice, this ceils the value above current time if resolution greater than zero and if
-                        // current time is not exactly on resolution.
-                        ceilDate(_beginDate, getAnimationResolution());
-                    }
-
-                } else {
-                    // Check if time can be gotten from layer configurations because
-                    // it was not given for animation directly.
-                    _beginDate = getAnimationBeginDateFromLayers();
-                    // Floor to the exact resolution time.
-                    if (undefined !== _beginDate) {
-                        floorDate(_beginDate, getAnimationResolution());
-                    }
-                }
-
-                if (undefined === _beginDate) {
-                    throw "ERROR: Animation configuration missing proper begin time!";
-                }
-            }
-            // Make copy. Then, possible changes do not affect the original object.
-            return undefined === _beginDate ? undefined : new Date(_beginDate.getTime());
-        }
-
-        /**
-         * See API for function description.
-         */
-        function getAnimationEndDate() {
-            // Set end date once.
-            if (undefined === _endDate && _config) {
-                // Check if time has been given directly for the animation.
-                if (undefined !== _config.animationDeltaToEndTime) {
-                    // Notice, positive value of end time is towards future.
-                    // Negative value may be used if end time should be in the past.
-                    _endDate = new Date();
-                    if (_config.animationDeltaToEndTime) {
-                        // Positive delta value given.
-                        _endDate.setTime(_endDate.getTime() + _config.animationDeltaToEndTime);
-                        ceilDate(_endDate, getAnimationResolution());
-
-                    } else {
-                        // Zero value for delta is a special case because it informs that future data is not wanted.
-                        // Notice, this floors the value below current time if resolution greater than zero and if
-                        // current time is not exactly on resolution.
-                        floorDate(_endDate, getAnimationResolution());
-                    }
-
-                } else {
-                    // Check if time can be gotten from layer configurations because
-                    // it was not given for animation directly.
-                    _endDate = getAnimationEndDateFromLayers();
-                    // Ceil to the exact resolution time.
-                    if (undefined !== _endDate) {
-                        ceilDate(_endDate, getAnimationResolution());
-                    }
-                }
-
-                if (undefined === _endDate) {
-                    throw "ERROR: Animation configuration missing proper end time!";
-                }
-            }
-            // Make copy. Then, possible changes do not affect the original object.
-            return undefined === _endDate ? undefined : new Date(_endDate.getTime());
-        }
-
-        /**
-         * See API for function description.
-         */
-        function getForecastBeginDate() {
-            return _forecastBeginDate;
-        }
-
-        /**
-         * See API for function description.
-         */
-        function getCapabilities() {
-            var capabilities = [];
-            // Get capabilities objects from the container.
-            for (var i = 0; i < _capabilitiesContainer.length; ++i) {
-                capabilities.push(_capabilitiesContainer[i].capabilities);
-            }
-            return capabilities;
-        }
-
-        /**
-         * See API for function description.
-         */
-        function init(callback) {
-            if (!callback) {
-                var errorStr = "ERROR: Factory init callback is mandatory!";
-                if ("undefined" !== typeof console && console) {
-                    console.error(errorStr);
-                }
-                // Throw exception directly because callback is not provided.
-                throw errorStr;
-            }
-            try {
-                // Reset asynchronous operation variables before starting new flow.
-                _asyncCounter = 0;
-                _errors = [];
-                initCapabilities(callback);
-
-            } catch(e) {
-                // An error occurred in synchronous flow.
-                // But, inform observer about the error asynchronously.
-                // Then, flow progresses similarly through API in both
-                // error and success cases.
-                var error = e.toString();
-                if ("undefined" !== typeof console && console) {
-                    console.error("ERROR: Factory init error: " + error);
-                }
-                _errors.push(error);
-                handleCallback(callback);
-            }
-        }
 
         // Public config API.
         //-------------------
 
-        /**
-         * Initialize configuration information.
-         *
-         * Asynchronous function that needs to be called before other functions can be used.
-         * For example, capabilities data is loaded if required by configurations.
-         *
-         * Callback is mandatory and is used to follow the progress of the operation.
-         *
-         * @param {Function} callback Callback is {function(factory, errors)}.
-         *                            Mandatory and may not be {undefined} or {null}.
-         *                              - factory: Reference to {this} factory. Always provided.
-         *                              - errors: Array that contains possible errors that occurred
-         *                                        during the flow. Array is always provided even if it
-         *                                        may be empty.
-         */
-        this.init = init;
 
         /**
-         * @return {Array} Array of capabilities objects that may have been loaded during initialization.
-         *                 Array is always provided even if it may be empty.
+         * @return {OpenLayers.Map} Map for OpenLayers.
+         *                          May be {undefined} or {null}. Then,
+         *                          framework will not use any map and will not use layers either.
          */
-        this.getCapabilities = getCapabilities;
+        this.getMap = getMap;
+
+        /**
+         * @return [{OpenLayers.Layer}] Layer array for OpenLayers.
+         *                              May not be {undefined} or {null}, but may be empty.
+         */
+        this.getLayers = getLayers;
+
+    };
+
+    // Constructor function for new instantiation.
+    return _constructor;
+})();
+
+// "use strict";
+
+// Requires timestep.js
+if ("undefined" === typeof timestep || !timestep) {
+    throw "ERROR: timestep.js is required for fi.fmi.metoclient.ui.animator.Factory2!";
+}
+
+// Requires lodash
+if ("undefined" === typeof _ || !_) {
+    throw "ERROR: Lodash is required for fi.fmi.metoclient.ui.animator.Factory2!";
+}
+
+// Requires OpenLayers
+if ( typeof OpenLayers === "undefined" || !OpenLayers) {
+    throw "ERROR: OpenLayers is required for fi.fmi.metoclient.ui.animator.Factory2!";
+}
+
+// "Package" definitions
+var fi = fi || {};
+fi.fmi = fi.fmi || {};
+fi.fmi.metoclient = fi.fmi.metoclient || {};
+fi.fmi.metoclient.ui = fi.fmi.metoclient.ui || {};
+fi.fmi.metoclient.ui.animator = fi.fmi.metoclient.ui.animator || {};
+
+if ("undefined" === typeof fi.fmi.metoclient.ui.animator.WmsCapabilities || !fi.fmi.metoclient.ui.animator.WmsCapabilities) {
+    throw "ERROR: fi.fmi.metoclient.ui.animator.WmsCapabilities is required for fi.fmi.metoclient.ui.animator.Factory2!";
+}
+
+/**
+ * This configuration factory provides the configuration map
+ * and layer objects that the framework uses for OpenLayers.
+ *
+ * Example:
+ * // Notice, configuration object may need to be deep cloned to make sure
+ * // factory does not change content of the original config object properties.
+ * var config = new fi.fmi.metoclient.ui.animator.Factory2(
+ *                      _.cloneDeep(fi.fmi.metoclient.ui.animator.Config, cloneDeepCallback));
+ * // Start asynchronous initialization.
+ * config.init(function(factory, errors) {
+ *     // Initialization ready.
+ * });
+ */
+fi.fmi.metoclient.ui.animator.Factory2 = (function() {
+
+    /**
+     * @private
+     *
+     * Floor the given date to the given resolution.
+     *
+     * @param {Date} date Date object whose value is floored.
+     *                    Operation is ignored if {undefined} or {null}
+     * @param {Integer} resolution Resolution that the date should be floored to.
+     *                             Operation is ignored if {undefined}, {null}, zero or negative value.
+     */
+    function floorDate(date, resolution) {
+        // TODO Move date manipulation to a utility class
+        if (date && resolution && resolution > 0) {
+            var time = date.getTime();
+            if (time !== resolution) {
+                var reminder = time % resolution;
+                if (reminder) {
+                    time -= reminder;
+                    date.setTime(time);
+                }
+            }
+        }
+    }
+
+    /**
+     * @private
+     *
+     * Ceil the given date to the given resolution.
+     *
+     * @param {Date} date Date object whose value is ceiled.
+     *                    Operation is ignored if {undefined} or {null}
+     * @param {Integer} resolution Resolution that the date should be ceiled to.
+     *                             Operation is ignored if {undefined}, {null}, zero or negative value.
+     */
+    function ceilDate(date, resolution) {
+        // TODO Move date manipulation to a utility class
+        if (date && resolution && resolution > 0) {
+            var time = date.getTime();
+            if (time !== resolution) {
+                var reminder = time % resolution;
+                if (reminder) {
+                    time += resolution - reminder;
+                    date.setTime(time);
+                }
+            }
+        }
+    }
+
+
+    /**
+     * Constructor for new instance.
+     * This function provides the public API and also contains private instance specific functionality.
+     *
+     * @param {Object} configuration ConfigLoader object. Must not be undefined or null.
+     */
+    var _constructor = function(configLoader) {
+        // Private member variables.
+        //--------------------------
+        var _me = this;
+
+        // Map and layer configuration object.
+        var _configLoader = configLoader;
+
+        // OpenLayers related map and layers variables.
+        // See corresponding get functions below to create content.
+        var _map;
+        var _layers = [];
+        var _availability;
+        var _constraints;
+
+        // Private member functions.
+        //--------------------------
+
+        /**
+         * Creates a constructor wrapper function that may be instantiated with {new}.
+         *
+         * @param {Function} constructor Constructor function.
+         *                               Operation ignored if {undefined} or {null}.
+         * @param {Array} args Arguments array that contains arguments that are given for the constructor.
+         *                     May be {undefined} or {null}.
+         * @return {Function} Wrapper function for constructor with given arguments.
+         *                    This can be used with {new} to instantiate.
+         *                    Notice, returned function needs to be surrounded with parentheses when {new} is used.
+         *                    For example, new (constructorWrapper(constructor, args));
+         */
+        var constructorWrapper = function(constructor, args) {
+            var wrapper;
+            if (constructor) {
+                var params = [constructor, constructor];
+                if (args) {
+                    params = params.concat(args);
+                }
+                wrapper = _.bind.apply(_, params);
+            }
+            return wrapper;
+        };
+
+        /**
+         * Create instance of the class with the given class name and arguments
+         *
+         * @param {String} className Name of the class to be instantiated.
+         *                           Operation ignored if {undefined}, {null} or empty.
+         * @param {Array} args Arguments array that contains arguments that are given for the constructor.
+         *                     May be {undefined} or {null}.
+         * @return {Object} New Instance of the class with given arguments.
+         */
+        var createInstance = function(className, args) {
+            var instance;
+            if (className) {
+                // Check namespaces of the class
+                // and create function that contains possible namespaces.
+                var nameArr = className.split(".");
+                var constructor = (window || this);
+                if (constructor) {
+                    for (var i = 0, len = nameArr.length; i < len; i++) {
+                        constructor = constructor[nameArr[i]];
+                    }
+                    if ("function" === typeof constructor) {
+                        // Function was successfully created.
+                        // Create instance with the given arguments.
+                        // Notice, parentheses are required around wrapper function.
+                        instance = new (constructorWrapper(constructor, args))();
+                    }
+                }
+            }
+            return instance;
+        };
+
+
+        // Public functions for API.
+        // ------------------------
+
+        /**
+         * See API for function description.
+         */
+        function getMap() {
+            var _config = _configLoader.getConfig();
+            // Create map if it has not been created yet.
+            if (!_map && _config && _config.map && _config.map.className) {
+                var args;
+                if (_config.map.args && _config.map.args.length > 0) {
+                    args = _config.map.args;
+                    var options = args[0];
+                    if (!options.theme) {
+                        // Notice! This setting should be used in all configurations,
+                        // unless you really know what you are doing. Do not use default
+                        // theme but own style.css instead.
+                        options.theme = null;
+                    }
+                }
+                _map = createInstance(_config.map.className, args);
+            }
+            return _map;
+        }
+
+        function getControlLayers() {
+            return _.map(_constraints.timelines, function(layers, name) {
+                return new OpenLayers.Layer.Animation.ControlLayer(name, {layers: layers});
+            });
+        }
+
+        /**
+         * See API for function description.
+         */
+        function getLayers() {
+            // Only generate layers once
+            if (_layers.length !== 0) {
+                return _layers;
+            }
+
+            function findAnimation(args) {
+                for (var i = 0; i < args.length; i++) {
+                    var arg = args[i];
+                    if (arg) {
+                        var animation = arg.animation;
+                        if (animation) {
+                            return animation;
+                        }
+                    }
+                }
+                return undefined;
+            }
+
+            function layerFactoryFor(klass, args) {
+                return function(t) {
+                    // TODO Hack, expects that args[0] is layer name
+                    var new_name_args = [args[0] + Math.random()].concat(args.slice(1));
+                    var layer = new (constructorWrapper(klass, new_name_args))();
+                    layer.setTime(t);
+                    return layer;
+                };
+            }
+
+            function fillOutAnimation(animation, mode) {
+                // Check animation resolution of the layer.
+                if (animation.resolutionTime === undefined) {
+                    // Make sure that at least a default resolution is set for animation layer.
+                    animation.resolutionTime = _configLoader.getAnimationResolution();
+                }
+                // Check if layer configuration has set begin and end times for animation.
+                // If whole animation has the values but layer itself does not,
+                // use animation values also for the layer as default.
+                if (animation.beginTime === undefined) {
+                    if (mode === 'observation') {
+                        animation.beginTime = _configLoader.getAnimationBeginDate();
+                    } else {
+                        animation.beginTime = _configLoader.getForecastBeginDate();
+                    }
+                }
+                if (animation.endTime === undefined) {
+                    if (mode === 'observation') {
+                        animation.endTime = _configLoader.getForecastBeginDate();
+                    } else {
+                        animation.endTime = _configLoader.getAnimationEndDate();
+                    }
+                }
+                if (animation.resolutionTime) {
+                    // Make sure that animation begin time of the layer is set on the correct resolution time.
+                    // This is required if layer itself has defined its own resolution instead of
+                    // using animation resolution.
+                    if (!(animation.beginTime instanceof Date)) {
+                        animation.beginTime = new Date(animation.beginTime);
+                    }
+                    floorDate(animation.beginTime, animation.resolutionTime);
+                    // Make sure that animation end time of the layer is set on the correct resolution time.
+                    // This is required if layer itself has defined its own resolution instead of
+                    // using animation resolution.
+                    if (!(animation.endTime instanceof Date)) {
+                        animation.endTime = new Date(animation.endTime);
+                    }
+                    ceilDate(animation.endTime, animation.resolutionTime);
+                }
+            }
+
+            function fillWmtsDefaults(args) {
+                // TODO Implement
+            }
+
+            function fillWmsDefaults(args) {
+                // WMS default params
+                var defaultParams = {
+                    transparent: true,
+                    format: "image/png"
+                };
+                
+                // WMS default options
+                var defaultOptions = {
+                    singleTile : false,
+                    displayInLayerSwitcher : false,
+                    isBaseLayer : false
+                };
+                
+                var params = _.extend(defaultParams, args[2]);
+                var options = _.extend(defaultOptions, args[3]);
+                
+                args[2] = params;
+                args[3] = options;
+            }
+
+            // Create forecast layer for existing WMS/WMTS layers
+            function createWmsForecastLayer(layerConf) {
+                var klass = OpenLayers.Layer.Animation.TimedLayerClassWrapper(OpenLayers.Layer.WMS, {
+                    timeSetter: OpenLayers.Layer.Animation.TimedLayerClassWrapper.mergeParams
+                });
+
+                var subLayers = layerConf.args[3].animation.layers;
+                if (subLayers !== undefined && subLayers.length > 0) {
+                    console.log("Found subLayers for layer", layerConf.args[0]);
+                    var layers = _.map(subLayers, function(subLayer) {
+                        var name = subLayer.name;
+                        var url = layerConf.args[1];
+                        var params = {layers : subLayer.layer};
+                        var options = {animation : _.pick(subLayer, ["beginTime", "endTime", "resolutionTime", "hasLegend"])};
+                        fillOutAnimation(options.animation, 'forecast');
+                        console.log("Filled-out animation config for layer", name, options.animation);
+                        var args = [name, url, params, options];
+                        var legendInfoProvider = createLegendInfoProvider(options.animation);
+                        fillWmsDefaults(args);
+                        return createLayer(klass, name, args, legendInfoProvider);
+                    });
+                    return layers[0];
+                }
+            }
+
+            function createWmtsForecastLayer(layerConf) {
+                // TODO Implement
+            }
+
+            function createLegendInfoProvider(animation) {
+                if (animation.hasLegend) {
+                    // TODO Handle non-WMS/WMTS case
+                    return new OpenLayers.Layer.Animation.WMSWMTSLegendInfoProvider();
+                } else {
+                    return new OpenLayers.Layer.Animation.DisabledLegendInfoProvider();
+                }
+            }
+
+            function createLayer(klass, name, args, legendInfoProvider) {
+                // TODO Constraints and availability
+                var layerFactory = layerFactoryFor(klass, args);
+
+                var animation = args[3].animation;
+                _availability[name] = timestep.restricted(animation.beginTime, animation.endTime, animation.resolutionTime);
+
+                return new OpenLayers.Layer.Animation.PreloadingTimedLayer(name, {
+                    "layerFactory" : layerFactory,
+                    "preloadPolicy" : preloader,
+                    "retainPolicy" : retainer,
+                    "fader" : fader,
+                    "timeSelector" : previousTimeSelector,
+                    "legendInfoProvider" : legendInfoProvider,
+                    "displayInLayerSwitcher" : false
+                });
+            }
+
+            _availability = {};
+            
+            var retainer = new OpenLayers.Layer.Animation.RetainRange();
+            var nextTimeSelector = new OpenLayers.Layer.Animation.ShowNextAvailable();
+            var previousTimeSelector = new OpenLayers.Layer.Animation.ShowPreviousAvailable();
+            var preloader = new OpenLayers.Layer.Animation.PreloadAll();
+            var fader = new OpenLayers.Layer.Animation.TimedFader(250, 1000/60);
+
+            var _config = _configLoader.getConfig();
+
+            _constraints = {
+                globalRange: [_configLoader.getAnimationBeginDate(), _configLoader.getAnimationEndDate()],
+                timelines: {},
+                rangeGroups: {}
+            };
+
+            var observationLayers = [];
+            var forecastLayers = [];
+
+            _constraints["rangeGroups"]["observation"] = {range: [_configLoader.getAnimationBeginDate(), _configLoader.getForecastBeginDate()], layers: observationLayers};
+            _constraints["rangeGroups"]["forecast"] = {range: [_configLoader.getForecastBeginDate(), _configLoader.getAnimationEndDate()], layers: forecastLayers};
+
+            function processConfig() {
+                // Create layers only if layers have not been created before.
+                if (_config && _config.layers) {
+                    var layerConfigs = _config.layers;
+                    for (var i = 0; i < layerConfigs.length; ++i) {
+                        var config = layerConfigs[i];
+                        // Reset layer to undefined for this loop.
+                        if (config && config.className && config.args) {
+                            // Layers are created by providing arguments list in configuration.
+                            // Check from the given arguments if any of them contains animation configuration.
+                            var animation = findAnimation(config.args);
+                            if (animation) {
+                                fillOutAnimation(animation, 'observation');
+
+                                // Interpret legacy layer names and create corresponding wrappers
+                                var klass;
+                                var forecastLayer;
+                                if (config.className.indexOf("OpenLayers.Layer.Animation.Wms") === 0) {
+                                    // WMS case
+                                    klass = OpenLayers.Layer.Animation.TimedLayerClassWrapper(OpenLayers.Layer.WMS, {
+                                        timeSetter: OpenLayers.Layer.Animation.TimedLayerClassWrapper.mergeParams
+                                    });
+
+                                    fillWmsDefaults(config.args);
+                                    forecastLayer = createWmsForecastLayer(config);
+                                } else if (config.className.indexOf("OpenLayers.Layer.Animation.Wms") === 0) {
+                                    // WMTS case
+                                    // TODO Default configuration
+                                    klass = OpenLayers.Layer.Animation.TimedLayerClassWrapper(OpenLayers.Layer.WMTS, {
+                                        timeSetter: OpenLayers.Layer.Animation.TimedLayerClassWrapper.mergeParams
+                                    });
+
+                                    fillWmtsDefaults(config.args);
+                                    forecastLayer = createWmtsForecastLayer(config);
+                                } else {
+                                    // TODO Some other case, decide what to do later
+                                    throw "Unknown class: " + config.className;
+                                }
+
+                                var legendInfoProvider = createLegendInfoProvider(animation);
+
+                                // TODO Hack, asssume args[0] is layer name
+                                var preloadingLayer = createLayer(klass, config.args[0], config.args, legendInfoProvider);
+
+                                _constraints.timelines[preloadingLayer.name] = [preloadingLayer];
+                                observationLayers.push(preloadingLayer.name);
+                                _layers.push(preloadingLayer);
+
+                                if (forecastLayer !== undefined) {
+                                    _constraints.timelines[preloadingLayer.name].push(forecastLayer);
+                                    forecastLayers.push(forecastLayer.name);
+                                    _layers.push(forecastLayer);
+                                }
+
+                            } else {
+                                // Just create a basic layer
+                                _layers.push(createInstance(config.className, config.args));
+                            }
+                        }
+                    }
+                }
+            }
+            processConfig();
+            return _layers;
+        }
+
+        function getConstraints() {
+            return _constraints;
+        }
+
+        function getAvailableRanges() {
+            return _availability;
+        }
+
+
+        // Public config API.
+        //-------------------
+
 
         /**
          * @return {OpenLayers.Map} Map for OpenLayers.
@@ -1526,63 +1226,27 @@ fi.fmi.metoclient.ui.animator.Factory = (function() {
         this.getLayers = getLayers;
 
         /**
-         * @return {Integer} Default zoom level that should be used with the map when layers are added to it.
-         *                   For example, {OpenLayers.setCenter} function can use this information together with
-         *                   {OpenLayers.getCenter()} function.
+         * @return [{OpenLayers.Layer}] Control Layer array for OpenLayers. Not included in getLayers result. These layers are visible in layer switcher
+         *                              May not be {undefined} or {null}, but may be empty.
          */
-        this.getDefaultZoomLevel = getDefaultZoomLevel;
+        this.getControlLayers = getControlLayers;
 
         /**
-         * @return {Integer} Frame rate in milliseconds that is used for the animation.
+         * @return {Object} Constraints object as specified in openlayers-animation.
          */
-        this.getAnimationFrameRate = getAnimationFrameRate;
+        this.getConstraints = getConstraints;
 
         /**
-         * @return {Integer} Animation resolution time in milliseconds that is used for the animation.
+         * @return {Object} Available ranges object as specified in openlayers-animation.
          */
-        this.getAnimationResolution = getAnimationResolution;
+        this.getAvailableRanges = getAvailableRanges;
 
-        /**
-         * Notice, this gives the animation default begin time.
-         * Different animation layers may have their own begin times configured.
-         * This gives only time for the whole animation.
-         *
-         * @return {Date} Default value for animation begin time.
-         *                If configuration provides the value, it is used.
-         *                Notice, date is floored to the nearest animation resolution time if
-         *                time and resolution are given in configuration.
-         *                May be {undefined} if not set in configuration.
-         */
-        this.getAnimationBeginDate = getAnimationBeginDate;
-
-        /**
-         * Notice, this gives the animation default end time.
-         * Different animation layers may have their own begin times configured.
-         * This gives only time for the whole animation.
-         *
-         * @return {Date} Default value for animation end time.
-         *                If configuration provides the value, it is used.
-         *                Notice, date is ceiled to the nearest animation resolution time if
-         *                time and resolution are given in configuration.
-         *                May be {undefined} if not set in configuration.
-         */
-        this.getAnimationEndDate = getAnimationEndDate;
-
-        /**
-         * Get the forecast begin date for the whole animation.
-         *
-         * Forecast starts from current time as a default.
-         * But, layers may define other forecast begin times.
-         *
-         * @return {Date} The forecast begin date for the whole animation.
-         *                May not be {undefined}.
-         */
-        this.getForecastBeginDate = getForecastBeginDate;
     };
 
     // Constructor function for new instantiation.
     return _constructor;
 })();
+
 
 // "use strict";
 
@@ -2022,9 +1686,15 @@ fi.fmi.metoclient.ui.animator.Controller = (function() {
         }
 
         function redrawTimeCells() {
-            while (_progressCellSet.length) {
-                _progressCellSet.splice(0, 1)[0].remove();
+
+            function findAndRemoveMatchingCell(cells, startDate, endDate) {
+                var matching = _.remove(cells, function(cell) {return cell.data("startDate") === startDate && cell.data("endDate") === endDate;});
+                return matching[0]; // returns undefined if no matches
             }
+
+            var oldCells = _progressCellSet;
+            _progressCellSet = [];
+
             var resolution = getResolution();
             if (resolution) {
                 var begin = getStartTime();
@@ -2034,28 +1704,53 @@ fi.fmi.metoclient.ui.animator.Controller = (function() {
                 var cellCount = Math.floor((end - begin) / resolution);
                 var cellWidth = getScaleAreaWidth() / cellCount;
                 for (var i = 0; i < cellCount; ++i) {
+                    var cellStart = begin + i * resolution;
+                    var cellEnd = begin + (i+1) * resolution;
+
+                    // Create a new cell
                     var cell = _paper.rect(beginX + i * cellWidth, beginY, cellWidth, _scaleConfig.progressCellHeight);
-                    cell.attr("fill", _scaleConfig.bgColor).attr("stroke-width", "0");
                     // Notice, cell ID actually describes the time value in the end of the cell instead of the beginning.
                     // Therefore (i+1) is used. Then, when cell content is loaded, the cell that ends to the selected time
                     // is handled instead of handling cell ahead of the time.
                     cell.node.id = "animationProgressCell_" + (begin + (i + 1) * resolution);
-                    _progressCellSet.push(cell);
+                    cell.data("startDate", cellStart);
+                    cell.data("endDate", cellEnd);
                     jQuery(cell.node).mousewheel(handleMouseScroll);
+
+
+                    // Try to find an existing cell, to get nStarted, nComplete and fill color
+                    var oldCell = findAndRemoveMatchingCell(oldCells, cellStart, cellEnd);
+                    if (oldCell === undefined) {
+                        console.log("Initializing anew");
+                        // No matching old cell, init to zero
+                        cell.data("nStarted", 0);
+                        cell.data("nComplete", 0);
+                        cell.data("nErrors", 0);
+                        cell.attr("fill", _scaleConfig.bgColor).attr("stroke-width", "0");
+                    } else {
+                        // Init from old cell
+                        console.log("Initializing from old cell");
+                        cell.data("nStarted", oldCell.data("nStarted"));
+                        cell.data("nComplete", oldCell.data("nComplete"));
+                        cell.data("nErrors", oldCell.data("nErrors"));
+                        cell.attr("fill", oldCell.attr("fill")).attr("stroke-width", "0");
+                    }
+
+                    _progressCellSet.push(cell);
                 }
             }
         }
 
         function getCellByTime(time) {
-            var cell;
             for (var i = 0; i < _progressCellSet.length; ++i) {
-                if (_progressCellSet[i].node.id === "animationProgressCell_" + time) {
-                    cell = _progressCellSet[i];
-                    cell.attr("fill", _scaleConfig.cellReadyColor);
-                    break;
+                var cell = _progressCellSet[i];
+                var start = cell.data("startDate");
+                var end = cell.data("endDate");
+                if (start < time && time <= end) {
+                    return cell;
                 }
             }
-            return cell;
+            return undefined;
         }
 
         /**
@@ -2154,7 +1849,18 @@ fi.fmi.metoclient.ui.animator.Controller = (function() {
                 var time = items[i].time.getTime();
                 var cell = getCellByTime(time);
                 if (cell) {
-                    cell.attr("fill", items[i].error ? _scaleConfig.cellErrorColor : _scaleConfig.cellLoadingColor);
+                    var nErrors = cell.data("nErrors");
+                    if (items[i].error) {
+                        nErrors += 1;
+                        cell.data("nErrors", nErrors);
+                    }
+                    var nStarted = cell.data("nStarted");
+                    nStarted += 1;
+                    cell.data("nStarted", nStarted);
+                    var nComplete = cell.data("nComplete");
+                    if (nStarted > nComplete) {
+                        cell.attr("fill", nErrors > 0 ? _scaleConfig.cellErrorColor : _scaleConfig.cellLoadingColor);
+                    }
                 }
             }
         }
@@ -2165,7 +1871,21 @@ fi.fmi.metoclient.ui.animator.Controller = (function() {
                 var time = items[i].time.getTime();
                 var cell = getCellByTime(time);
                 if (cell) {
-                    cell.attr("fill", items[i].error ? _scaleConfig.cellErrorColor : _scaleConfig.cellReadyColor);
+                    var nErrors = cell.data("nErrors");
+                    if (items[i].error) {
+                        nErrors += 1;
+                        cell.data("nErrors", nErrors);
+                    }
+                    var nComplete = cell.data("nComplete");
+                    nComplete += 1;
+                    cell.data("nComplete", nComplete);
+                    var nStarted = cell.data("nStarted");
+                    if (nComplete >= nStarted) {
+                        cell.attr("fill", nErrors > 0 ? _scaleConfig.cellErrorColor : _scaleConfig.cellReadyColor);
+                        if (nComplete > nStarted) {
+                            console.error("BUG? complete: ", nComplete, "started: ", nStarted);
+                        }
+                    }
                 }
             }
         }
@@ -2248,7 +1968,7 @@ fi.fmi.metoclient.ui.animator.Controller = (function() {
             // Collection of scale tick elements.
             _tickSet = _paper.set();
             // Collection of progress cell elements.
-            _progressCellSet = _paper.set();
+            _progressCellSet = [];
 
             // Create scale UI components.
             // Scale container is used in the background of the scale elements.
@@ -2327,7 +2047,7 @@ fi.fmi.metoclient.ui.animator.Controller = (function() {
         function setTimeModel(model) {
             _model = model;
             model.addTimePeriodChangeListener({
-                timePeriodChanged : function(start, end) {
+                timePeriodChanged : function(start, end, resolution) {
                     redrawAll();
                 }
             });
@@ -2426,8 +2146,8 @@ fi.fmi.metoclient = fi.fmi.metoclient || {};
 fi.fmi.metoclient.ui = fi.fmi.metoclient.ui || {};
 fi.fmi.metoclient.ui.animator = fi.fmi.metoclient.ui.animator || {};
 
-if ("undefined" === typeof fi.fmi.metoclient.ui.animator.Factory || !fi.fmi.metoclient.ui.animator.Factory) {
-    throw "ERROR: fi.fmi.metoclient.ui.animator.Factory is required for fi.fmi.metoclient.ui.animator.Animator!";
+if ("undefined" === typeof fi.fmi.metoclient.ui.animator.Factory2 || !fi.fmi.metoclient.ui.animator.Factory2) {
+    throw "ERROR: fi.fmi.metoclient.ui.animator.Factory2 is required for fi.fmi.metoclient.ui.animator.Animator!";
 }
 
 if ("undefined" === typeof fi.fmi.metoclient.ui.animator.Controller || !fi.fmi.metoclient.ui.animator.Controller) {
@@ -2453,23 +2173,11 @@ if ("undefined" === typeof fi.fmi.metoclient.ui.animator.Controller || !fi.fmi.m
  *     // Callback is mandatory if getConfig function needs to be used.
  *     callback : function(animator, errors) {
  *         // For example, animator map object may be used after initialization.
- *         var map = animator.getConfig().getMap();
+ *         var map = animator.getFactory().getMap();
  *     }
  * });
  */
 fi.fmi.metoclient.ui.animator.Animator = (function() {
-
-    /**
-     * Controller object.
-     *
-     * Same controller for all the Animator instances.
-     * This will trigger and listen events to and from the OpenLayers animation element.
-     */
-    var MyController = {
-        // Use OpenLayers events as a controller and this singleton object as its container.
-        events : new OpenLayers.Events(this)
-    };
-
     /**
      * Deep clone callback function for lodash.
      *
@@ -2502,6 +2210,10 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
         // Options that contain for example div IDS.
         var _options;
         var _config;
+        var _factory;
+
+        // Coordinate time, ranges and visibility of temporally dependent layers
+        var _coordinator;
 
         // Set when operation is going on.
         var _requestAnimationTime;
@@ -2523,6 +2235,8 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
 
         // Animation controller is set here during initialization.
         var _animationController;
+        // Time controller must be available to animator code so that period changes can happen
+        var _timeController;
         // Resize function is set to this member variable
         // when new controller is created. By using this member variable,
         // multiple functions are not set if controllers are created multiple times.
@@ -2538,25 +2252,26 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
             scope : _me,
             // These are defined here to show which events are used.
             // Actual functions are set for these parameters later.
-            animationloadstarted : undefined,
+            // animationloadstarted : undefined,
             frameloadstarted : undefined,
             frameloadcomplete : undefined,
-            animationloadgroupprogress : undefined,
-            animationloadcomplete : undefined,
-            animationframecontentreleased : undefined,
+            // animationloadgroupprogress : undefined,
+            // animationloadcomplete : undefined,
+            // animationframecontentreleased : undefined,
             framechanged : undefined
         };
 
         // OpenLayers Animation layer event callbacks.
         //--------------------------------------------
 
-        _events.animationloadstarted = function(event) {
-            progressbarLoadStarted(event.layer);
-            firePause();
-            jQuery.each(_animationEventsListeners, function(index, value) {
-                value.loadAnimationStartedCb(event);
-            });
-        };
+        // TODO Trace functionality
+        // _events.animationloadstarted = function(event) {
+        //     progressbarLoadStarted(event.layer);
+        //     firePause();
+        //     jQuery.each(_animationEventsListeners, function(index, value) {
+        //         value.loadAnimationStartedCb(event);
+        //     });
+        // };
 
         _events.frameloadstarted = function(event) {
             jQuery.each(_animationEventsListeners, function(index, value) {
@@ -2570,26 +2285,29 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
             });
         };
 
-        _events.animationloadgroupprogress = function(event) {
-            jQuery.each(_animationEventsListeners, function(index, value) {
-                value.loadGroupProgressCb(event);
-            });
-        };
+        // TODO Trace functionality
+        // _events.animationloadgroupprogress = function(event) {
+        //     jQuery.each(_animationEventsListeners, function(index, value) {
+        //         value.loadGroupProgressCb(event);
+        //     });
+        // };
 
-        _events.animationloadcomplete = function(event) {
-            progressbarLoadComplete(event.layer);
-            firePlay();
-            jQuery.each(_animationEventsListeners, function(index, value) {
-                value.loadCompleteCb(event);
-            });
-        };
+        // TODO Trace functionality
+        // _events.animationloadcomplete = function(event) {
+        //     progressbarLoadComplete(event.layer);
+        //     firePlay();
+        //     jQuery.each(_animationEventsListeners, function(index, value) {
+        //         value.loadCompleteCb(event);
+        //     });
+        // };
 
-        _events.animationframecontentreleased = function(event) {
-            progressbarLoadComplete(event.layer);
-            jQuery.each(_animationEventsListeners, function(index, value) {
-                value.animationFrameContentReleasedCb(event);
-            });
-        };
+        // TODO Trace functionality
+        // _events.animationframecontentreleased = function(event) {
+        //     progressbarLoadComplete(event.layer);
+        //     jQuery.each(_animationEventsListeners, function(index, value) {
+        //         value.animationFrameContentReleasedCb(event);
+        //     });
+        // };
 
         _events.framechanged = function(event) {
             jQuery.each(_animationEventsListeners, function(index, value) {
@@ -2624,29 +2342,43 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
         var handleCallback = function(callback, errors) {
             if (callback) {
                 setTimeout(function() {
-                    try {
-                        callback(_me, errors);
-
-                    } catch(e) {
-                        // Ignore errors that may occur in the callback.
-                        // Callback may be provided from outside of this library.
-                        if ("undefined" !== typeof console && console) {
-                            console.error("ERROR: Callback function error!");
-                        }
-                    }
+                    callback(_me, errors);
                 }, 0);
             }
         };
+
+        function updateCapabilitiesCallback() {
+            var newConfig = new fi.fmi.metoclient.ui.animator.ConfigLoader(_.cloneDeep(_options.config || fi.fmi.metoclient.ui.animator.Config, cloneDeepCallback));
+            
+            console.log("Updated capabilities");
+            fi.fmi.metoclient.ui.animator.WmsCapabilities.getDataMultiple(newConfig.getCapabilitiesUrls(), function(capabilities, errors) {
+                console.log("Got capabilities update");
+                if (!errors.length) {
+                    // Asynchronous initialization is successful
+                    newConfig.init(capabilities);
+
+                    // TODO Extract animation data
+                    // TODO Update layer ranges to coordinator
+                    // TODO Update timeline (how?)
+                    _config = newConfig;
+                    _timeController.proposeTimePeriodChange(getBeginDate(), getEndDate(), getResolution());
+                } else {
+                    // TODO Report errors
+                    console.error("Got async errors during config update");
+                }
+            });
+
+        }
 
         /**
          * Callback for configuration {init} function call.
          *
          * See more details from {init} function for {options} and {errors} parameters.
          *
-         * @param {Object} options Options for animator initialization.
+         * @param {Object} capabilities Capabilities object from the server.
          * @param {Array} errors Array that contains possible errors that occurred during the flow.
          */
-        function configInitCallback(options, errors) {
+        function configInitCallback(capabilities, errors) {
             // Create structure only if initialization was a total success.
             if (errors && errors.length) {
                 // Inform that animation structure is not created at all.
@@ -2657,6 +2389,23 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
                 }
 
             } else {
+                // Asynchronous initialization is successful
+                console.log("Got data");
+                _config.init(capabilities);
+
+                // Hide the progressbar.
+                jQuery(".animatorLoadProgressbar").hide();
+
+                _factory = new fi.fmi.metoclient.ui.animator.Factory2(_config);
+                var layers = _factory.getLayers();
+                var controlLayers = _factory.getControlLayers();
+                var controllableLayers = _.filter(layers, function(l) {return l.setTime && l.setRange;});
+
+                var constraints = _factory.getConstraints();
+                var availableRanges = _factory.getAvailableRanges();
+
+                _coordinator = new OpenLayers.Layer.Animation.LayerGroupCoordinator(controllableLayers, constraints, availableRanges);
+
                 // Use options and configuration object to set map and layers.
                 setMapAndLayers();
 
@@ -2665,7 +2414,16 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
             }
 
             // Handle callback after asynchronous initialization.
-            handleCallback(options.callback, errors);
+            handleCallback(_options.callback, errors);
+            
+            console.log("Caps", _config.getCapabilities(), _config.getConfig().updateCapabilities);
+            if (_config.getCapabilities().length && _config.getConfig().updateCapabilities) {
+                console.log("Scheduling GetCapabilities updates");
+                // GetCapabilities in use and updates requested, schedule updates
+                setTimeout(function() { // TODO Switch back to setIntervaland 60 second after initial testing
+                    updateCapabilitiesCallback();
+                }, 3000);
+            }
         }
 
         // Utils functions.
@@ -2819,9 +2577,8 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
                 var deltaTime = getResolution();
                 _currentTime = _currentTime + deltaTime > getEndDate().getTime() ? getBeginDate().getTime() : _currentTime + deltaTime;
             }
-            MyController.events.triggerEvent("timechanged", {
-                time : _currentTime
-            });
+
+            _coordinator.setTime(new Date(_currentTime));
         }
 
         function changeToPreviousFrame() {
@@ -2832,17 +2589,19 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
                 var deltaTime = getResolution();
                 _currentTime = _currentTime - deltaTime < getBeginDate().getTime() ? getEndDate().getTime() : _currentTime - deltaTime;
             }
-            MyController.events.triggerEvent("timechanged", {
-                time : _currentTime
-            });
+
+            _coordinator.setTime(new Date(_currentTime));
         }
 
         /**
          * Inform listeners about the period change.
          */
-        function fireTimePeriodChanged(startTime, endTime, listeners) {
+        function fireTimePeriodChanged(startTime, endTime, resolution, listeners) {
+
+            // TODO Calculate new available ranges, new constraints and update _coordinator
+
             jQuery.each(listeners, function(index, value) {
-                value.timePeriodChanged(startTime, endTime);
+                value.timePeriodChanged(startTime, endTime, resolution);
             });
         }
 
@@ -2852,13 +2611,16 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
         function fireSelectedTimeChanged(time, listeners) {
             // Because time change is proposed from outside.
             // Also, make sure animation is updated accordingly.
-            _currentTime = time instanceof Date ? time.getTime() : time;
-            MyController.events.triggerEvent("timechanged", {
-                time : time
-            });
-            jQuery.each(listeners, function(index, value) {
-                value.selectedTimeChanged(time);
-            });
+            var newTime = time instanceof Date ? time.getTime() : time;
+            if (newTime !== _currentTime) {
+                // Time changed
+                _currentTime = newTime;
+
+                _coordinator.setTime(new Date(_currentTime));
+                jQuery.each(listeners, function(index, value) {
+                    value.selectedTimeChanged(time);
+                });
+            }
         }
 
         /**
@@ -3206,6 +2968,7 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
             if (_options.legendDivId) {
                 var legendTimeout;
                 var legendEventHandler = function(event) {
+                    // TODO *Why?*
                     // Use small timeout to make sure legends are not set too close to each other
                     // if multiple actions of same kind are started in a group.
                     if (undefined === legendTimeout) {
@@ -3265,44 +3028,36 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
         }
 
         /**
-         * Set given layers into the map.
-         * Also, register layers and controller to listen events.
-         *
-         * @param {OpenLayers.Map} map Map that will contain the given layers.
-         * @param [{OpenLayers.Layer}] layers Array of layers that will be added to the map.
-         */
-        function setLayers(map, layers) {
-            for (var i = 0; i < layers.length; ++i) {
-                var layer = layers[i];
-                if (layer.registerController) {
-                    // Layer has the required function.
-                    // Register layer to listen animation related controller events.
-                    layer.registerController(MyController.events);
-                }
-                if (layer.events) {
-                    // Register to listen animation events.
-                    layer.events.on(_events);
-                }
-                // Add layer to map.
-                // Notice, this also starts the animation if
-                // autoload and autostart have been defined for configuration.
-                map.addLayer(layer);
-            }
-        }
-
-        /**
          * Set layers into the map.
          */
         function setMapAndLayers() {
             if (_options.mapDivId) {
-                var map = _config.getMap();
+                var map = _factory.getMap();
                 if (map) {
                     // Render map to its position.
                     map.render(_options.mapDivId);
-                    var layers = _config.getLayers();
+                    var layers = _factory.getLayers();
+
+                    // Control layers that are visible in layer switcher
+                    var controlLayers = _factory.getControlLayers();
+                    _.each(controlLayers, function(cl) {
+                        map.addLayer(cl);
+                    });
+
                     if (layers) {
                         setAnimationLegendEventListener(layers);
-                        setLayers(map, layers);
+
+                        for (var i = 0; i < layers.length; ++i) {
+                            var layer = layers[i];
+                            if (layer.events) {
+                                // Register to listen animation events.
+                                layer.events.on(_events);
+                            }
+                            // Add layer to map.
+                            // Notice, this also starts the animation if
+                            // autoload and autostart have been defined for configuration.
+                            map.addLayer(layer);
+                        }
                     }
                     // Zoom the map after layers have been inserted.
                     map.setCenter(map.getCenter(), _config.getDefaultZoomLevel());
@@ -3357,15 +3112,6 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
                 var ctrlSelector = "#" + _options.controllerDivId;
                 var ctrls = jQuery(ctrlSelector);
                 if (ctrls.length) {
-                    var currentTime = (new Date()).getTime();
-                    var startTime = getBeginDate().getTime();
-                    var endTime = getEndDate().getTime();
-                    // Forecast start time.
-                    var fctStart = getForecastBeginDate().getTime();
-                    // If end time is less than forecast time, then forecast is not used and value is left undefined.
-                    if (endTime < fctStart) {
-                        fctStart = undefined;
-                    }
                     var timePeriodListeners = [];
                     var timeSelectionListeners = [];
                     var fctStartTimeListeners = [];
@@ -3374,16 +3120,16 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
                     // Model is used by animation controller to setup slider according to the animation settings.
                     var timeModel = {
                         getStartTime : function() {
-                            return startTime;
+                            return getBeginDate().getTime();
                         },
                         getEndTime : function() {
-                            return endTime;
+                            return getEndDate().getTime();
                         },
                         getResolution : function() {
                             return getResolution();
                         },
                         getForecastStartTime : function() {
-                            return fctStart;
+                            return getForecastBeginDate().getTime();
                         },
                         addTimePeriodChangeListener : function(l) {
                             timePeriodListeners.push(l);
@@ -3404,12 +3150,12 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
 
                     // Animation controller may use these callback functions to inform
                     // if animation state should be changed because of the actions in the slider.
-                    var timeController = {
-                        proposeTimePeriodChange : function(startTime, endTime) {
-
+                    _timeController = {
+                        proposeTimePeriodChange : function(startTime, endTime, resolution) {
+                            fireTimePeriodChanged(startTime, endTime, resolution, timePeriodListeners);
                         },
                         proposeTimeSelectionChange : function(time) {
-                            if ((time >= startTime) && (time <= endTime)) {
+                            if ((time >= getBeginDate().getTime()) && (time <= getEndDate().getTime())) {
                                 // Make sure steps are in given resolutions.
                                 time = time - time % getResolution();
                                 fireSelectedTimeChanged(time, timeSelectionListeners);
@@ -3426,7 +3172,7 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
                         }
                     };
 
-                    _animationController = createCtrl(ctrls, timeModel, timeController);
+                    _animationController = createCtrl(ctrls, timeModel, _timeController);
 
                     // Bind to listen for width changes in element to update
                     // controller if necessary. Width is defined as relative
@@ -3440,11 +3186,14 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
                             width = currentWidth;
                             // Simply replace old with a new controller.
                             _animationController.remove();
-                            _animationController = createCtrl(ctrls, timeModel, timeController);
+                            _animationController = createCtrl(ctrls, timeModel, _timeController);
                         }
                     });
 
                     setPlayAndPause();
+
+                    // Initialize to beginning of period
+                    _timeController.proposeTimeSelectionChange(getBeginDate().getTime());
                 }
             }
         }
@@ -3550,6 +3299,20 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
         /**
          * See API for function description.
          */
+        function getFactory() {
+            if (_options && !_options.callback) {
+                var errorStr = "ERROR: Animator init options.callback is mandatory if getConfig is used!";
+                if ("undefined" !== typeof console && console) {
+                    console.error(errorStr);
+                }
+                throw errorStr;
+            }
+            return _factory;
+        }
+
+        /**
+         * See API for function description.
+         */
         function refresh() {
             // Handle refresh operation same way as window resize event.
             // Notice, jQuery does not seem to provide easy way to listen for
@@ -3560,7 +3323,7 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
 
             // Also, make sure map is updated properly.
             if (_config) {
-                var map = _config.getMap();
+                var map = _factory.getMap();
                 if (map) {
                     map.updateSize();
                 }
@@ -3572,7 +3335,7 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
          */
         function reset() {
             if (_config) {
-                var map = _config.getMap();
+                var map = _factory.getMap();
                 if (map) {
                     // Notice, map needs to be destroyed
                     // before container is removed from DOM.
@@ -3600,6 +3363,7 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
 
             // Reset options and configurations.
             _config = undefined;
+            _factory = undefined;
             _options = undefined;
         }
 
@@ -3616,17 +3380,13 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
                     createStructure(options);
                     // Configuration object is deep cloned here.
                     // Then, if properties are changed during the flow, the content of the original object is not changed.
-                    _config = new fi.fmi.metoclient.ui.animator.Factory(_.cloneDeep(options.config || fi.fmi.metoclient.ui.animator.Config, cloneDeepCallback));
+                    _config = new fi.fmi.metoclient.ui.animator.ConfigLoader(_.cloneDeep(options.config || fi.fmi.metoclient.ui.animator.Config, cloneDeepCallback));
                     // Start asynchronous initialization.
                     // Also, show progressbar during asynchronous operation.
                     jQuery(".animatorLoadProgressbar").show();
-                    _config.init(function(factory, errors) {
-                        // Asynchronous initialization is over.
-                        // Hide the progressbar.
-                        jQuery(".animatorLoadProgressbar").hide();
-                        configInitCallback(options, errors);
-                    });
 
+                    console.log("Fetching data");
+                    fi.fmi.metoclient.ui.animator.WmsCapabilities.getDataMultiple(_config.getCapabilitiesUrls(), configInitCallback);
                 } catch(e) {
                     // An error occurred in synchronous flow.
                     // But, inform observer about the error asynchronously.
@@ -3743,13 +3503,11 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
         this.refresh = refresh;
 
         /**
-         * Getter for configuration API object.
+         * Getter for configuration loader API object.
          *
-         * Configuration API provides getter functions for animation configurations and also for
-         * {OpenLayers} components. Then, for example, animation {OpenLayers.Map} is available
-         * via the API.
+         * Configuration API provides getter functions for animation configurations.
          *
-         * See, {fi.fmi.metoclient.ui.animator.Factory} API for more detailed description.
+         * See, {fi.fmi.metoclient.ui.animator.ConfigLoader} API for more detailed description.
          *
          * Notice, {options.callback} is mandatory if {options} is given for {init} function
          * and if {getConfig} function is used. This is to highlight that asynchronous
@@ -3757,13 +3515,807 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
          *
          * @return {Object} Configuration API object.
          *                  May be {undefined} if animator has not been initialized
-         *                  by calling {init} with {options} object.
+         *                  by calling {init}.
          */
         this.getConfig = getConfig;
+
+        /**
+         * Getter for map and layer factory API object.
+         *
+         * Factory API provides getter functions for OL components such as Map and Layers.
+         *
+         * See, {fi.fmi.metoclient.ui.animator.Factory} API for more detailed description.
+         *
+         * Notice, {options.callback} is mandatory if {options} is given for {init} function
+         * and if {getFactory} function is used. This is to highlight that asynchronous
+         * configuration operations should finish before {getFactory} is used.
+         *
+         * @return {Object} Factory API object.
+         *                  May be {undefined} if animator has not been initialized
+         *                  by calling {init}.
+         */
+        this.getFactory = getFactory;
 
     };
 
     // Constructor function is returned for later instantiation.
     return _constructor;
 
+})();
+
+// "use strict";
+
+// Requires lodash
+if ("undefined" === typeof _ || !_) {
+    throw "ERROR: Lodash is required for fi.fmi.metoclient.ui.animator.Animator!";
+}
+
+// "Package" definitions
+var fi = fi || {};
+fi.fmi = fi.fmi || {};
+fi.fmi.metoclient = fi.fmi.metoclient || {};
+fi.fmi.metoclient.ui = fi.fmi.metoclient.ui || {};
+fi.fmi.metoclient.ui.animator = fi.fmi.metoclient.ui.animator || {};
+
+if ("undefined" === typeof fi.fmi.metoclient.ui.animator.WmsCapabilities || !fi.fmi.metoclient.ui.animator.WmsCapabilities) {
+    throw "ERROR: fi.fmi.metoclient.ui.animator.WmsCapabilities is required for fi.fmi.metoclient.ui.animator.ConfigLoader!";
+}
+
+/**
+ * This configuration loader object fills out missing parts of the user-supplied 
+ * configuration.
+ *
+ */
+fi.fmi.metoclient.ui.animator.ConfigLoader = (function() {
+
+    // Private constants.
+
+    // If configuration uses auto for time value,
+    // capabilities is used to get the proper time.
+    var CAPABILITY_TIME_AUTO = "auto";
+
+    // If configuration sub-layer uses join for time value,
+    // capabilities is used to get the proper begin time
+    // for the sub-layer.
+    var CAPABILITY_TIME_JOIN = "join";
+
+    /**
+     * @private
+     *
+     * Floor the given date to the given resolution.
+     *
+     * @param {Date} date Date object whose value is floored.
+     *                    Operation is ignored if {undefined} or {null}
+     * @param {Integer} resolution Resolution that the date should be floored to.
+     *                             Operation is ignored if {undefined}, {null}, zero or negative value.
+     */
+    function floorDate(date, resolution) {
+        // TODO Move date manipulation to a utility class
+        if (date && resolution && resolution > 0) {
+            var time = date.getTime();
+            if (time !== resolution) {
+                var reminder = time % resolution;
+                if (reminder) {
+                    time -= reminder;
+                    date.setTime(time);
+                }
+            }
+        }
+    }
+
+    /**
+     * @private
+     *
+     * Ceil the given date to the given resolution.
+     *
+     * @param {Date} date Date object whose value is ceiled.
+     *                    Operation is ignored if {undefined} or {null}
+     * @param {Integer} resolution Resolution that the date should be ceiled to.
+     *                             Operation is ignored if {undefined}, {null}, zero or negative value.
+     */
+    function ceilDate(date, resolution) {
+        // TODO Move date manipulation to a utility class
+        if (date && resolution && resolution > 0) {
+            var time = date.getTime();
+            if (time !== resolution) {
+                var reminder = time % resolution;
+                if (reminder) {
+                    time += resolution - reminder;
+                    date.setTime(time);
+                }
+            }
+        }
+    }
+
+    /**
+     * Constructor for new instance.
+     * This function provides the public API and also contains private instance specific functionality.
+     *
+     * @param {Object} configuration Map and layer configuration object.
+     *                               May be {undefined} or {null} but then operations are ignored.
+     */
+    var _constructor = function(configuration) {
+        // Private member variables.
+        //--------------------------
+        var _me = this;
+
+        // Map and layer configuration object.
+        var _config = configuration;
+
+        // Capabilities data for configurations.
+        // Capabilities objects wrap requested capabilities and
+        // other capability related information. Capability objects
+        // are set into this array during asynchronous initialization.
+        var _capabilitiesContainer = [];
+
+        // Animation setting related variables that are initialized
+        // when corresponding get functions are called first time.
+        var _resolution;
+        var _beginDate;
+        var _endDate;
+
+        // Forecast starts from current time as a default.
+        // But, layers may define other forecast begin times.
+        // Current time or the smallest forecast time from
+        // layers is used for the whole animation.
+        var _forecastBeginDate = new Date();
+
+        // Private member functions.
+        //--------------------------
+
+        /**
+         * @param {String} layer Layer identifier.
+         *                       Operation is ignored if {undefined}, {null} or {empty}.
+         * @param {String} url URL used for capability request.
+         *                     Proper capability object, that contains information for layer,
+         *                     is identified by the URL.
+         *                     Operation is ignored if {undefined}, {null} or {empty}.
+         * @return {Object} Layer from the loaded capabilities.
+         *                  See {fi.fmi.metoclient.ui.animator.WmsCapabilities.getLayer}.
+         *                  May be {undefined} if layer is not found.
+         */
+        function getCapabilityLayer(layer, url) {
+            var capabilityLayer;
+            if (layer && url) {
+                for (var i = 0; i < _capabilitiesContainer.length; ++i) {
+                    var capas = _capabilitiesContainer[i];
+                    if (capas) {
+                        var capabilities = capas.capabilities;
+                        if (capabilities && url === capas.url) {
+                            var capaLayer = fi.fmi.metoclient.ui.animator.WmsCapabilities.getLayer(capabilities, layer);
+                            // Notice, checking is finished if layer is found.
+                            // There should be only one match and other URL matches should not exist
+                            // in the capabilities array. But, continue search if layer is not found
+                            // just to be sure even if capabilities URL matched because this is not
+                            // performance critical check.
+                            if (capaLayer) {
+                                capabilityLayer = capaLayer;
+                                // Layer was found here. No need to continue.
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+            return capabilityLayer;
+        }
+
+        /**
+         * Check the forecast begin date from the configuration.
+         *
+         * The forecast begin date is updated by the smallest begin date from the layers
+         * that have been defined as forecasts if any is found.
+         *
+         * Notice, this should be called only after {checkConfiguration} has checked
+         * the animation layer time values.
+         */
+        function checkForecastBeginDate() {
+            if (_config && _config.layers && _config.layers.length) {
+                // The default forecast begin date is ceiled on the resolution.
+                // Then, the forecast begins on the animation step that shows the
+                // first forecast data. For example, first step after the present
+                // moment or exactly on it if present is exactly on the resolution.
+                // Also, animation layer specific checks floor the forecast
+                // begin date similarly on the first forecast step below.
+                ceilDate(_forecastBeginDate, getAnimationResolution());
+
+                // Check all the configuration layers.
+                // The forecast begin date is the smallest date for the layer
+                // that has been defined as forecast.
+                for (var i = 0; i < _config.layers.length; ++i) {
+                    var layer = _config.layers[i];
+                    if (layer) {
+                        // Layers are created by providing arguments list in configuration.
+                        for (var j = 0; j < layer.args.length; ++j) {
+                            var arg = layer.args[j];
+                            if (arg) {
+                                var animation = arg.animation;
+                                // Notice, the value is always resetted below before using it to update layer properties.
+                                // So, no need to reset value to undefined here.
+                                var tmpBeginDate;
+                                // Check from the given arguments if any of them contains animation configuration.
+                                if (animation) {
+                                    // Make sure resolution times are used properly when times are adjusted.
+                                    // This provides layer specific resolution if available.
+                                    var animationResolutionTime = animation.resolutionTime;
+                                    if (undefined === animationResolutionTime) {
+                                        animationResolutionTime = getAnimationResolution();
+                                        if (undefined === animationResolutionTime) {
+                                            throw "ERROR: Animation resolution time missing!";
+                                        }
+                                    }
+                                    // Check begin time only from the layer that defines itself as a forecast.
+                                    if (animation.isForecast) {
+                                        // If begin time is available, make sure Date instance is used.
+                                        if (undefined !== animation.beginTime) {
+                                            // New date object is created for tmp date instead of using reference to existing object.
+                                            tmpBeginDate = animation.beginTime instanceof Date ? new Date(animation.beginTime.getTime()) : new Date(animation.beginTime);
+
+                                        } else {
+                                            // Begin time was not defined for layer.
+                                            // Then, animation level begin time is used for that layer.
+                                            tmpBeginDate = getAnimationBeginDate();
+                                        }
+                                        // Layer animation begin times are floored when layers are created.
+                                        // Floor forecast begin date similarly. Then, layer specific checking can be done.
+                                        floorDate(tmpBeginDate, animationResolutionTime);
+                                        // Update forecast begin time if the layer has begin time that is smaller than previously set value.
+                                        if (undefined !== tmpBeginDate && (undefined === _forecastBeginDate || _forecastBeginDate.getTime() > tmpBeginDate.getTime())) {
+                                            // Forecast begin time is always Date instance.
+                                            _forecastBeginDate = tmpBeginDate;
+                                        }
+                                    }
+                                    // Check also sub-layers of the animation layer.
+                                    // Sub-layer may be forecast even if parent is not.
+                                    if (animation.layers) {
+                                        for (var k = 0; k < animation.layers.length; ++k) {
+                                            var subLayer = animation.layers[k];
+                                            // Check begin time from the sub-layer that defines itself as a forecast
+                                            // or whose parent is a forecast.
+                                            if (subLayer && (subLayer.isForecast || animation.isForecast)) {
+                                                // If begin time is available, make sure Date instance is used.
+                                                // Notice, sub-layer shold always have begin time set.
+                                                if (undefined !== subLayer.beginTime) {
+                                                    // New date object is created for tmp date instead of using reference to existing object.
+                                                    tmpBeginDate = subLayer.beginTime instanceof Date ? new Date(subLayer.beginTime.getTime()) : new Date(subLayer.beginTime);
+
+                                                } else {
+                                                    // Begin time was not defined for layer.
+                                                    // Then, animation level begin time is used for that layer.
+                                                    // Sub-layer should always have begin time configured. So, we should not come here.
+                                                    tmpBeginDate = getAnimationBeginDate();
+                                                }
+                                                // Layer animation begin times are floored when layers are created.
+                                                // Floor forecast begin date similarly. Then, layer specific checking can be done.
+                                                floorDate(tmpBeginDate, animationResolutionTime);
+                                                // Update forecast begin time if the layer has begin time that is smaller than previously set value.
+                                                if (undefined !== tmpBeginDate && (undefined === _forecastBeginDate || _forecastBeginDate.getTime() > tmpBeginDate.getTime())) {
+                                                    // Forecast begin time is always Date instance.
+                                                    _forecastBeginDate = tmpBeginDate;
+                                                }
+                                            }
+                                        }
+                                    }
+                                    // Use the first animation that is found from the arguments.
+                                    // Therefore, no need to browse other arguments through any more.
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        /**
+         * Check given {animation} and fine-tune times by using capability information for the layer.
+         *
+         * If animation times contain capability time strings,
+         * they are replaced by proper times from the capabilities information.
+         *
+         * @param {Object} timeInfo Configuration sub-object that contains time properties
+         *                          that are set if necessary.
+         *                          Operation is ignored if {undefined} or {null}.
+         * @param {Object} capabilityLayer Layer object gotten from capabilities.
+         *                                 See {getCapabilityLayer} function.
+         *                                 Operation is ignored if {undefined} or {null}.
+         * @param {Integer} resolution Animation resolution time.
+         *                             May be {undefined} or {null} that are handled as zero.
+         */
+        function checkAnimationConfigTimes(timeInfo, capabilityLayer, resolution) {
+            if (timeInfo && capabilityLayer) {
+                if (timeInfo.beginTime === CAPABILITY_TIME_AUTO) {
+                    timeInfo.beginTime = fi.fmi.metoclient.ui.animator.WmsCapabilities.getBeginTime(capabilityLayer);
+                    // Because begin times are floored on resolution when layers are created,
+                    // make sure begin time is within capability limits by ceiling it here.
+                    ceilDate(timeInfo.beginTime, resolution);
+                }
+                if (timeInfo.endTime === CAPABILITY_TIME_AUTO) {
+                    timeInfo.endTime = fi.fmi.metoclient.ui.animator.WmsCapabilities.getEndTime(capabilityLayer);
+                    // Because end times are ceiled on resolution when layers are created,
+                    // make sure end time is within capability limits by flooring it here.
+                    floorDate(timeInfo.endTime, resolution);
+                }
+            }
+        }
+
+        /**
+         * Check given {animation} and fine-tune values according to the capability information.
+         *
+         * @param {Object} animation Configuration sub-object that contains time properties
+         *                           that are set if necessary.
+         *                           Operation is ignored if {undefined} or {null}.
+         * @param {Object} capability Configuration sub-object that contains capability information.
+         *                            Operation is ignored if {undefined} or {null}.
+         */
+        function checkConfigurationAnimation(animation, capability) {
+            if (animation && capability && capability.url && capability.layer) {
+                // Layer configuration provides enough information
+                // to get capabilites information from the loaded capabilities.
+                var capabilityLayer = getCapabilityLayer(capability.layer, capability.url);
+                if (capabilityLayer) {
+                    // Make sure resolution times are used properly when times are adjusted.
+                    var animationResolutionTime = animation.resolutionTime;
+                    if (undefined === animationResolutionTime) {
+                        animationResolutionTime = getAnimationResolution();
+                        if (undefined === animationResolutionTime) {
+                            throw "ERROR: Animation resolution time missing!";
+                        }
+                    }
+                    checkAnimationConfigTimes(animation, capabilityLayer, animationResolutionTime);
+                    // Check animation sub-layers.
+                    if (animation.layers) {
+                        for (var i = 0; i < animation.layers.length; ++i) {
+                            var subLayer = animation.layers[i];
+                            if (subLayer && subLayer.layer) {
+                                // Sub-layer capability layer information can be gotten by using sublayer ID
+                                // and parent layer capability URL.
+                                checkAnimationConfigTimes(subLayer, getCapabilityLayer(subLayer.layer, capability.url), animationResolutionTime);
+                                if (subLayer.beginTime === CAPABILITY_TIME_JOIN) {
+                                    // Notice, if join is used, the value set for the parent end time does not matter.
+                                    // Parent end time defines end time for the whole animation, including sub layers.
+                                    // Join can not be done after whole animation. Instead, end time of the parent
+                                    // capability needs to be used to join sub-animation into the middle of the animation.
+                                    subLayer.beginTime = fi.fmi.metoclient.ui.animator.WmsCapabilities.getEndTime(capabilityLayer);
+                                    if (undefined !== subLayer.beginTime) {
+                                        // Notice, configuration animation resolution and capabilities resolution
+                                        // may define different values. Animation may use greater resolution.
+                                        // Make sure that first frame of animation sub-layer and last frame of
+                                        // parent layer will not overlap. Just in case begin time is on the configuration
+                                        // resolution, increase time by one. Then, parent layer end time uses capability
+                                        // value and sub layer first time after that. In other cases, parent time is
+                                        // floored normally on resolution and sub layer time is ceiled to next value.
+                                        subLayer.beginTime = new Date(subLayer.beginTime.getTime() + 1);
+                                        ceilDate(subLayer.beginTime, animationResolutionTime);
+
+                                    } else {
+                                        throw "ERROR: Animation sub-layer missing capability begin time!";
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        /**
+         * Check if configuration object content needs to be tuned.
+         *
+         * Configuration layer times are updated according to capabilities.
+         */
+        function checkConfiguration() {
+            if (_capabilitiesContainer.length && _config && _config.layers) {
+                for (var i = 0; i < _config.layers.length; ++i) {
+                    var layer = _config.layers[i];
+                    if (layer && layer.args) {
+                        // Layers are created by providing arguments list in configuration.
+                        // Check from the given arguments if any of them contains animation configuration.
+                        for (var j = 0; j < layer.args.length; ++j) {
+                            var arg = layer.args[j];
+                            if (arg) {
+                                var animation = arg.animation;
+                                if (animation) {
+                                    checkConfigurationAnimation(animation, layer.capabilities);
+                                    // Use the first animation that is found from the arguments.
+                                    // Therefore, no need to browse other arguments through any more.
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Check and set if configuration defines forecast begin dates.
+            // Notice, this is called after checkConfiguration has checked
+            // the animation layer time values.
+            checkForecastBeginDate();
+        }
+
+        /**
+         * Check layer configurations through and find the greatest value for resolution if any.
+         *
+         * @return {Integer} Resolution value.
+         *                   May be {undefined}.
+         */
+        function getAnimationResolutionFromLayers() {
+            var resolution;
+            if (_config) {
+                var layerConfigs = _config.layers;
+                if (layerConfigs) {
+                    // Configurations are provided for layers.
+                    // Check all the layers through.
+                    for (var i = 0; i < layerConfigs.length; ++i) {
+                        var config = layerConfigs[i];
+                        if (config && config.args) {
+                            // Layers are created by providing arguments list in configuration.
+                            // Check from the given arguments if any of them contains animation configuration.
+                            for (var j = 0; j < config.args.length; ++j) {
+                                var arg = config.args[j];
+                                if (arg) {
+                                    var animation = arg.animation;
+                                    if (animation) {
+                                        // Animation configuration is given. Check if resolution is also given for the animation.
+                                        if (!resolution || animation.resolutionTime !== undefined && animation.resolutionTime !== null && resolution < animation.resolutionTime) {
+                                            // Take the greatest resolution of them all.
+                                            resolution = animation.resolutionTime;
+                                        }
+                                        // Use the first animation that is found from the arguments.
+                                        // Therefore, no need to browse other arguments through any more.
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            return resolution;
+        }
+
+        /**
+         * Check layer configurations through and find the smallest value for animation begin date if any.
+         *
+         * @return {Date} Begin date. May be {undefined}.
+         *                New date object is created and returned date is not reference to any layer object.
+         */
+        function getAnimationBeginDateFromLayers() {
+            var date;
+            if (_config) {
+                var layerConfigs = _config.layers;
+                if (layerConfigs) {
+                    for (var i = 0; i < layerConfigs.length; ++i) {
+                        var config = layerConfigs[i];
+                        if (config && config.args) {
+                            // Layers are created by providing arguments list in configuration.
+                            // Check from the given arguments if any of them contains animation configuration.
+                            for (var j = 0; j < config.args.length; ++j) {
+                                var arg = config.args[j];
+                                if (arg) {
+                                    var animation = arg.animation;
+                                    if (animation) {
+                                        if (animation.beginTime !== undefined && animation.beginTime !== null) {
+                                            var tmpDate = animation.beginTime;
+                                            if (!( tmpDate instanceof Date)) {
+                                                tmpDate = new Date(tmpDate);
+                                            }
+                                            if (date === undefined || tmpDate.getTime() < date.getTime()) {
+                                                // Take the smallest date of them all.
+                                                // Make sure time is a copy of the original time.
+                                                // Then, reference to the original object is not returned.
+                                                date = new Date(tmpDate.getTime());
+                                            }
+                                        }
+                                        // Use the first animation that is found from the arguments.
+                                        // Therefore, no need to browse other arguments through any more.
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            return date;
+        }
+
+        /**
+         * Check layer configurations through and find the greatest value for animation end date if any.
+         *
+         * @return {Date} End date. May be {undefined}.
+         *                New date object is created and returned date is not reference to any layer object.
+         */
+        function getAnimationEndDateFromLayers() {
+            var date;
+            if (_config) {
+                var layerConfigs = _config.layers;
+                if (layerConfigs) {
+                    for (var i = 0; i < layerConfigs.length; ++i) {
+                        var config = layerConfigs[i];
+                        if (config && config.args) {
+                            // Layers are created by providing arguments list in configuration.
+                            // Check from the given arguments if any of them contains animation configuration.
+                            for (var j = 0; j < config.args.length; ++j) {
+                                var arg = config.args[j];
+                                if (arg) {
+                                    var animation = arg.animation;
+                                    if (animation) {
+                                        if (animation.endTime !== undefined && animation.endTime !== null) {
+                                            var tmpDate = animation.endTime;
+                                            if (!( tmpDate instanceof Date)) {
+                                                tmpDate = new Date(tmpDate);
+                                            }
+                                            if (date === undefined || tmpDate.getTime() > date.getTime()) {
+                                                // Take the greatest date of them all.
+                                                // Make sure time is a copy of the original time.
+                                                // Then, reference to the original object is not returned.
+                                                date = new Date(tmpDate.getTime());
+                                            }
+                                        }
+                                        // Use the first animation that is found from the arguments.
+                                        // Therefore, no need to browse other arguments through any more.
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            return date;
+        }
+
+        // Public functions for API.
+        // ------------------------
+
+        /**
+         * See API for function description.
+         */
+        function getConfig() {
+            return _config;
+        }
+
+        /**
+         * See API for function description.
+         */
+        function getDefaultZoomLevel() {
+            return _config ? _config.defaultZoomLevel : undefined;
+        }
+
+        /**
+         * See API for function description.
+         */
+        function getAnimationFrameRate() {
+            return _config ? _config.animationFrameRate : undefined;
+        }
+
+        /**
+         * See API for function description.
+         */
+        function getAnimationResolution() {
+            // Set resolution once.
+            if (_resolution === undefined) {
+                _resolution = _config ? _config.animationResolutionTime : undefined;
+                if (!_resolution) {
+                    // Because resolution was not defined for animation,
+                    // check it from layer configurations.
+                    _resolution = getAnimationResolutionFromLayers();
+                    if (!_resolution) {
+                        throw "ERROR: Animation configuration missing resolution time!";
+                    }
+                }
+            }
+            return _resolution;
+        }
+
+        /**
+         * See API for function description.
+         */
+        function getAnimationBeginDate() {
+            // Set begin date once.
+            if (undefined === _beginDate && _config) {
+                // Check if time has been given directly for the animation.
+                if (undefined !== _config.animationDeltaToBeginTime) {
+                    // Use animation setting.
+                    // Notice, positive value of begin time is towards past.
+                    // Negative value may be used if begin time should be in the future.
+                    _beginDate = new Date();
+                    if (_config.animationDeltaToBeginTime) {
+                        // Positive delta value given.
+                        _beginDate.setTime(_beginDate.getTime() - _config.animationDeltaToBeginTime);
+                        floorDate(_beginDate, getAnimationResolution());
+
+                    } else {
+                        // Zero value for delta is a special case because it informs that observed data is not wanted.
+                        // Notice, this ceils the value above current time if resolution greater than zero and if
+                        // current time is not exactly on resolution.
+                        ceilDate(_beginDate, getAnimationResolution());
+                    }
+
+                } else {
+                    // Check if time can be gotten from layer configurations because
+                    // it was not given for animation directly.
+                    _beginDate = getAnimationBeginDateFromLayers();
+                    // Floor to the exact resolution time.
+                    if (undefined !== _beginDate) {
+                        floorDate(_beginDate, getAnimationResolution());
+                    }
+                }
+
+                if (undefined === _beginDate) {
+                    throw "ERROR: Animation configuration missing proper begin time!";
+                }
+            }
+            // Make copy. Then, possible changes do not affect the original object.
+            return undefined === _beginDate ? undefined : new Date(_beginDate.getTime());
+        }
+
+        /**
+         * See API for function description.
+         */
+        function getAnimationEndDate() {
+            // Set end date once.
+            if (undefined === _endDate && _config) {
+                // Check if time has been given directly for the animation.
+                if (undefined !== _config.animationDeltaToEndTime) {
+                    // Notice, positive value of end time is towards future.
+                    // Negative value may be used if end time should be in the past.
+                    _endDate = new Date();
+                    if (_config.animationDeltaToEndTime) {
+                        // Positive delta value given.
+                        _endDate.setTime(_endDate.getTime() + _config.animationDeltaToEndTime);
+                        ceilDate(_endDate, getAnimationResolution());
+
+                    } else {
+                        // Zero value for delta is a special case because it informs that future data is not wanted.
+                        // Notice, this floors the value below current time if resolution greater than zero and if
+                        // current time is not exactly on resolution.
+                        floorDate(_endDate, getAnimationResolution());
+                    }
+
+                } else {
+                    // Check if time can be gotten from layer configurations because
+                    // it was not given for animation directly.
+                    _endDate = getAnimationEndDateFromLayers();
+                    // Ceil to the exact resolution time.
+                    if (undefined !== _endDate) {
+                        ceilDate(_endDate, getAnimationResolution());
+                    }
+                }
+
+                if (undefined === _endDate) {
+                    throw "ERROR: Animation configuration missing proper end time!";
+                }
+            }
+            // Make copy. Then, possible changes do not affect the original object.
+            return undefined === _endDate ? undefined : new Date(_endDate.getTime());
+        }
+
+        /**
+         * See API for function description.
+         */
+        function getForecastBeginDate() {
+            return _forecastBeginDate;
+        }
+
+        /**
+         * See API for function description.
+         */
+        function getCapabilities() {
+            return _.map(_capabilitiesContainer, "capabilities");
+        }
+
+        function getCapabilitiesUrls() {
+            // There may be multiple asynchronous operations started.
+            // Counter is initialized with the total count. Then, catch can
+            // handle synchronous exceptions as if asynchronous operation would
+            // have finished and one fail does not stop the whole flow if other
+            // asynchronous operations are going-on or about to be started.
+            var capabilities = _.filter(_.map(_config.layers, "capabilities"));
+            return _.uniq(_.map(capabilities, "url"));
+        }
+
+        /**
+         * See API for function description.
+         */
+        function init(capabilities) {
+            _capabilitiesContainer = capabilities;
+            checkConfiguration();
+        }
+
+        // Public config API.
+        //-------------------
+
+        /**
+         * Initialize configuration information.
+         *
+         * Asynchronous function that needs to be called before other functions can be used.
+         * For example, capabilities data is loaded if required by configurations.
+         *
+         * Callback is mandatory and is used to follow the progress of the operation.
+         *
+         * @param {Function} callback Callback is {function(factory, errors)}.
+         *                            Mandatory and may not be {undefined} or {null}.
+         *                              - factory: Reference to {this} factory. Always provided.
+         *                              - errors: Array that contains possible errors that occurred
+         *                                        during the flow. Array is always provided even if it
+         *                                        may be empty.
+         */
+        this.init = init;
+
+        /**
+         * @return {Array} Get the configuration object passed in. If init has been called, the object will have been modified..
+         */
+        this.getConfig = getConfig;
+
+        /**
+         * @return {Array} Array of capabilities objects that may have been loaded during initialization.
+         *                 Array is always provided even if it may be empty.
+         */
+        this.getCapabilities = getCapabilities;
+
+        /**
+         * @return {Array} Array of capabilities URLs that should be loaded before initializing the configuration
+         *                 Array is always provided even if it may be empty.
+         */
+        this.getCapabilitiesUrls = getCapabilitiesUrls;
+
+        /**
+         * @return {Integer} Default zoom level that should be used with the map when layers are added to it.
+         *                   For example, {OpenLayers.setCenter} function can use this information together with
+         *                   {OpenLayers.getCenter()} function.
+         */
+        this.getDefaultZoomLevel = getDefaultZoomLevel;
+
+        /**
+         * @return {Integer} Frame rate in milliseconds that is used for the animation.
+         */
+        this.getAnimationFrameRate = getAnimationFrameRate;
+
+        /**
+         * @return {Integer} Animation resolution time in milliseconds that is used for the animation.
+         */
+        this.getAnimationResolution = getAnimationResolution;
+
+        /**
+         * Notice, this gives the animation default begin time.
+         * Different animation layers may have their own begin times configured.
+         * This gives only time for the whole animation.
+         *
+         * @return {Date} Default value for animation begin time.
+         *                If configuration provides the value, it is used.
+         *                Notice, date is floored to the nearest animation resolution time if
+         *                time and resolution are given in configuration.
+         *                May be {undefined} if not set in configuration.
+         */
+        this.getAnimationBeginDate = getAnimationBeginDate;
+
+        /**
+         * Notice, this gives the animation default end time.
+         * Different animation layers may have their own begin times configured.
+         * This gives only time for the whole animation.
+         *
+         * @return {Date} Default value for animation end time.
+         *                If configuration provides the value, it is used.
+         *                Notice, date is ceiled to the nearest animation resolution time if
+         *                time and resolution are given in configuration.
+         *                May be {undefined} if not set in configuration.
+         */
+        this.getAnimationEndDate = getAnimationEndDate;
+
+        /**
+         * Get the forecast begin date for the whole animation.
+         *
+         * Forecast starts from current time as a default.
+         * But, layers may define other forecast begin times.
+         *
+         * @return {Date} The forecast begin date for the whole animation.
+         *                May not be {undefined}.
+         */
+        this.getForecastBeginDate = getForecastBeginDate;
+    };
+
+    // Constructor function for new instantiation.
+    return _constructor;
 })();
