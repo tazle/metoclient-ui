@@ -235,7 +235,7 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
                 };
             }
 
-            function fillOutAnimation(animation, mode) {
+            function fillOutAnimation(animation) {
                 // Check animation resolution of the layer.
                 if (animation.resolutionTime === undefined) {
                     // Make sure that at least a default resolution is set for animation layer.
@@ -245,17 +245,17 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
                 // If whole animation has the values but layer itself does not,
                 // use animation values also for the layer as default.
                 if (animation.beginTime === undefined) {
-                    if (mode === 'observation') {
-                        animation.beginTime = _configLoader.getAnimationBeginDate();
-                    } else {
+                    if (animation.isForecast) {
                         animation.beginTime = _configLoader.getForecastBeginDate();
+                    } else {
+                        animation.beginTime = _configLoader.getAnimationBeginDate();
                     }
                 }
                 if (animation.endTime === undefined) {
-                    if (mode === 'observation') {
-                        animation.endTime = _configLoader.getForecastBeginDate();
-                    } else {
+                    if (animation.isForecast) {
                         animation.endTime = _configLoader.getAnimationEndDate();
+                    } else {
+                        animation.endTime = _configLoader.getForecastBeginDate();
                     }
                 }
                 if (animation.resolutionTime) {
@@ -315,7 +315,7 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
                         var url = layerConf.args[1];
                         var params = {layers : subLayer.layer};
                         var options = {animation : _.pick(subLayer, ["beginTime", "endTime", "resolutionTime", "hasLegend"])};
-                        fillOutAnimation(options.animation, 'forecast');
+                        fillOutAnimation(options.animation);
                         console.log("Filled-out animation config for layer", name, options.animation);
                         var args = [name, url, params, options];
                         var legendInfoProvider = createLegendInfoProvider(options.animation);
@@ -391,7 +391,7 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
                             // Check from the given arguments if any of them contains animation configuration.
                             var animation = findAnimation(config.args);
                             if (animation) {
-                                fillOutAnimation(animation, 'observation');
+                                fillOutAnimation(animation);
 
                                 // Interpret legacy layer names and create corresponding wrappers
                                 var klass;
@@ -424,8 +424,12 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
                                 var preloadingLayer = createLayer(klass, config.args[0], config.args, legendInfoProvider);
 
                                 _constraints.timelines[preloadingLayer.name] = [preloadingLayer];
-                                observationLayers.push(preloadingLayer.name);
                                 _layers.push(preloadingLayer);
+                                if (animation.isForecast) {
+                                    forecastLayers.push(preloadingLayer.name);
+                                } else {
+                                    observationLayers.push(preloadingLayer.name);
+                                }
 
                                 if (forecastLayer !== undefined) {
                                     _constraints.timelines[preloadingLayer.name].push(forecastLayer);
