@@ -363,7 +363,7 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
             var nextTimeSelector = new OpenLayers.Layer.Animation.ShowNextAvailable();
             var previousTimeSelector = new OpenLayers.Layer.Animation.ShowPreviousAvailable();
             var preloader = new OpenLayers.Layer.Animation.PreloadAll();
-            var fader = new OpenLayers.Layer.Animation.TimedFader(250, 1000/60);
+            var fader = new OpenLayers.Layer.Animation.ImmediateFader();
 
             var _config = _configLoader.getConfig();
 

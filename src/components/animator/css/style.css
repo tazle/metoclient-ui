@@ -219,6 +219,15 @@ div.olControlZoom a:hover {
     border-radius: 0 4px 4px 0;
 }
 
+/* Disable OL transitions by default */
+.olLayerGrid .olTileImage {
+    -webkit-transition: opacity 0.0s linear;
+    -moz-transition: opacity 0.0s linear;
+    -o-transition: opacity 0.0s linear;
+    transition: opacity 0.0s linear;
+ }
+
+
 /* Animator legend styles. */
 
 /**
