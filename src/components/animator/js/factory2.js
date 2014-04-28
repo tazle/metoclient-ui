@@ -421,18 +421,18 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
                                 var legendInfoProvider = createLegendInfoProvider(animation);
 
                                 // TODO Hack, asssume args[0] is layer name
-                                var preloadingLayer = createLayer(klass, config.args[0], config.args, legendInfoProvider);
+                                var mainLayer = createLayer(klass, config.args[0], config.args, legendInfoProvider);
 
-                                _constraints.timelines[preloadingLayer.name] = [preloadingLayer];
-                                _layers.push(preloadingLayer);
+                                _constraints.timelines[mainLayer.name] = [mainLayer];
+                                _layers.push(mainLayer);
                                 if (animation.isForecast) {
-                                    forecastLayers.push(preloadingLayer.name);
+                                    forecastLayers.push(mainLayer.name);
                                 } else {
-                                    observationLayers.push(preloadingLayer.name);
+                                    observationLayers.push(mainLayer.name);
                                 }
 
                                 if (subLayer !== undefined) {
-                                    _constraints.timelines[preloadingLayer.name].push(subLayer);
+                                    _constraints.timelines[mainLayer.name].push(subLayer);
                                     forecastLayers.push(subLayer.name); // Sub-layers may only be forecast layers
                                     _layers.push(subLayer);
                                 }
