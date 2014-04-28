@@ -296,7 +296,7 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
             // Handle callback after asynchronous initialization.
             handleCallback(_options.callback, errors);
             
-            console.log("Caps", _config.getCapabilities(), _config.getConfig().updateCapabilities);
+            console.log("Caps", _config.getCapabilities());
             if (_config.getCapabilities().length && _config.getConfig().updateCapabilities) {
                 console.log("Scheduling GetCapabilities updates");
                 // GetCapabilities in use and updates requested, schedule updates
