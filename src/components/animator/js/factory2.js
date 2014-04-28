@@ -302,7 +302,7 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
             }
 
             // Create forecast layer for existing WMS/WMTS layers
-            function createWmsForecastLayer(layerConf) {
+            function createWmsSubLayer(layerConf) {
                 var klass = OpenLayers.Layer.Animation.TimedLayerClassWrapper(OpenLayers.Layer.WMS, {
                     timeSetter: OpenLayers.Layer.Animation.TimedLayerClassWrapper.mergeParams
                 });
@@ -326,7 +326,7 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
                 }
             }
 
-            function createWmtsForecastLayer(layerConf) {
+            function createWmtsSubLayer(layerConf) {
                 // TODO Implement
             }
 
@@ -395,7 +395,7 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
 
                                 // Interpret legacy layer names and create corresponding wrappers
                                 var klass;
-                                var forecastLayer;
+                                var subLayer;
                                 if (config.className.indexOf("OpenLayers.Layer.Animation.Wms") === 0) {
                                     // WMS case
                                     klass = OpenLayers.Layer.Animation.TimedLayerClassWrapper(OpenLayers.Layer.WMS, {
@@ -403,7 +403,7 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
                                     });
 
                                     fillWmsDefaults(config.args);
-                                    forecastLayer = createWmsForecastLayer(config);
+                                    subLayer = createWmsSubLayer(config);
                                 } else if (config.className.indexOf("OpenLayers.Layer.Animation.Wms") === 0) {
                                     // WMTS case
                                     // TODO Default configuration
@@ -412,7 +412,7 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
                                     });
 
                                     fillWmtsDefaults(config.args);
-                                    forecastLayer = createWmtsForecastLayer(config);
+                                    subLayer = createWmtsSubLayer(config);
                                 } else {
                                     // TODO Some other case, decide what to do later
                                     throw "Unknown class: " + config.className;
@@ -431,10 +431,10 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
                                     observationLayers.push(preloadingLayer.name);
                                 }
 
-                                if (forecastLayer !== undefined) {
-                                    _constraints.timelines[preloadingLayer.name].push(forecastLayer);
-                                    forecastLayers.push(forecastLayer.name);
-                                    _layers.push(forecastLayer);
+                                if (subLayer !== undefined) {
+                                    _constraints.timelines[preloadingLayer.name].push(subLayer);
+                                    forecastLayers.push(subLayer.name); // Sub-layers may only be forecast layers
+                                    _layers.push(subLayer);
                                 }
 
                             } else {
