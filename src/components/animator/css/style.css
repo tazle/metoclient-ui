@@ -228,6 +228,10 @@ div.olControlZoom a:hover {
  }
 
 
+.olImageLoadError {
+    display: none;
+}
+
 /* Animator legend styles. */
 
 /**
