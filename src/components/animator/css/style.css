@@ -227,7 +227,7 @@ div.olControlZoom a:hover {
     transition: opacity 0.0s linear;
  }
 
-
+/* Do not show error tiles, we have our own error indicator */
 .olImageLoadError {
     display: none;
 }
