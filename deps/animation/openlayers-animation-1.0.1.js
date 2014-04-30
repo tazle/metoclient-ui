@@ -702,6 +702,9 @@ OpenLayers.Layer.Animation.Fader = OpenLayers.Class({
 });
 
 OpenLayers.Layer.Animation.ImmediateFader = OpenLayers.Class(OpenLayers.Layer.Animation.Fader, {
+    initialize : function() {
+    },
+
     fade : function(parentLayer, fadeOut, fadeIn, afterFade) {
         if (fadeOut !== undefined) {
             fadeOut.setOpacity(0);
@@ -849,23 +852,6 @@ OpenLayers.Layer.Animation.TimedFader = OpenLayers.Class(OpenLayers.Layer.Animat
         getTimelines : function() {
             return _.keys(this._constraints.timelines);
         },
-
-        /**
-         * Set visibility of all layers of a timeline
-         *
-         * Throws an exception if the timeline is not defined.
-         */
-        setTimelineVisibility : function(timeline, visibility) {
-            var layerIds = this._constraints.timelines[timeline];
-            if (layerIds !== undefined) {
-                _.each();
-            } else {
-                throw "No timeline " + timeline;
-            }
-        }
-
-        // TODO Allow access to timeline visibility
-        // TODO Generate events when timeline visibility changes
 
     });
 })();
