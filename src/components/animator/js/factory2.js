@@ -316,7 +316,7 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
                         var name = subLayer.name;
                         var url = layerConf.args[1];
                         var params = {layers : subLayer.layer};
-                        var options = {animation : _.pick(subLayer, ["beginTime", "endTime", "resolutionTime", "hasLegend"])};
+                        var options = {animation : _.pick(subLayer, ["beginTime", "endTime", "resolutionTime", "hasLegend", "isForecast"])};
                         fillOutAnimation(options.animation);
                         console.log("Filled-out animation config for layer", name, options.animation);
                         var args = [name, url, params, options];
