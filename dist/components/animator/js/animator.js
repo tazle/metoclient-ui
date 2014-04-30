@@ -989,7 +989,7 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
                 };
             }
 
-            function fillOutAnimation(animation, mode) {
+            function fillOutAnimation(animation) {
                 // Check animation resolution of the layer.
                 if (animation.resolutionTime === undefined) {
                     // Make sure that at least a default resolution is set for animation layer.
@@ -999,17 +999,17 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
                 // If whole animation has the values but layer itself does not,
                 // use animation values also for the layer as default.
                 if (animation.beginTime === undefined) {
-                    if (mode === 'observation') {
-                        animation.beginTime = _configLoader.getAnimationBeginDate();
-                    } else {
+                    if (animation.isForecast) {
                         animation.beginTime = _configLoader.getForecastBeginDate();
+                    } else {
+                        animation.beginTime = _configLoader.getAnimationBeginDate();
                     }
                 }
                 if (animation.endTime === undefined) {
-                    if (mode === 'observation') {
-                        animation.endTime = _configLoader.getForecastBeginDate();
-                    } else {
+                    if (animation.isForecast) {
                         animation.endTime = _configLoader.getAnimationEndDate();
+                    } else {
+                        animation.endTime = _configLoader.getForecastBeginDate();
                     }
                 }
                 if (animation.resolutionTime) {
@@ -1056,7 +1056,7 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
             }
 
             // Create forecast layer for existing WMS/WMTS layers
-            function createWmsForecastLayer(layerConf) {
+            function createWmsSubLayer(layerConf) {
                 var klass = OpenLayers.Layer.Animation.TimedLayerClassWrapper(OpenLayers.Layer.WMS, {
                     timeSetter: OpenLayers.Layer.Animation.TimedLayerClassWrapper.mergeParams
                 });
@@ -1069,7 +1069,7 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
                         var url = layerConf.args[1];
                         var params = {layers : subLayer.layer};
                         var options = {animation : _.pick(subLayer, ["beginTime", "endTime", "resolutionTime", "hasLegend"])};
-                        fillOutAnimation(options.animation, 'forecast');
+                        fillOutAnimation(options.animation);
                         console.log("Filled-out animation config for layer", name, options.animation);
                         var args = [name, url, params, options];
                         var legendInfoProvider = createLegendInfoProvider(options.animation);
@@ -1080,7 +1080,7 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
                 }
             }
 
-            function createWmtsForecastLayer(layerConf) {
+            function createWmtsSubLayer(layerConf) {
                 // TODO Implement
             }
 
@@ -1117,7 +1117,7 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
             var nextTimeSelector = new OpenLayers.Layer.Animation.ShowNextAvailable();
             var previousTimeSelector = new OpenLayers.Layer.Animation.ShowPreviousAvailable();
             var preloader = new OpenLayers.Layer.Animation.PreloadAll();
-            var fader = new OpenLayers.Layer.Animation.TimedFader(250, 1000/60);
+            var fader = new OpenLayers.Layer.Animation.ImmediateFader();
 
             var _config = _configLoader.getConfig();
 
@@ -1145,11 +1145,11 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
                             // Check from the given arguments if any of them contains animation configuration.
                             var animation = findAnimation(config.args);
                             if (animation) {
-                                fillOutAnimation(animation, 'observation');
+                                fillOutAnimation(animation);
 
                                 // Interpret legacy layer names and create corresponding wrappers
                                 var klass;
-                                var forecastLayer;
+                                var subLayer;
                                 if (config.className.indexOf("OpenLayers.Layer.Animation.Wms") === 0) {
                                     // WMS case
                                     klass = OpenLayers.Layer.Animation.TimedLayerClassWrapper(OpenLayers.Layer.WMS, {
@@ -1157,7 +1157,7 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
                                     });
 
                                     fillWmsDefaults(config.args);
-                                    forecastLayer = createWmsForecastLayer(config);
+                                    subLayer = createWmsSubLayer(config);
                                 } else if (config.className.indexOf("OpenLayers.Layer.Animation.Wms") === 0) {
                                     // WMTS case
                                     // TODO Default configuration
@@ -1166,7 +1166,7 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
                                     });
 
                                     fillWmtsDefaults(config.args);
-                                    forecastLayer = createWmtsForecastLayer(config);
+                                    subLayer = createWmtsSubLayer(config);
                                 } else {
                                     // TODO Some other case, decide what to do later
                                     throw "Unknown class: " + config.className;
@@ -1175,16 +1175,20 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
                                 var legendInfoProvider = createLegendInfoProvider(animation);
 
                                 // TODO Hack, asssume args[0] is layer name
-                                var preloadingLayer = createLayer(klass, config.args[0], config.args, legendInfoProvider);
+                                var mainLayer = createLayer(klass, config.args[0], config.args, legendInfoProvider);
 
-                                _constraints.timelines[preloadingLayer.name] = [preloadingLayer];
-                                observationLayers.push(preloadingLayer.name);
-                                _layers.push(preloadingLayer);
+                                _constraints.timelines[mainLayer.name] = [mainLayer];
+                                _layers.push(mainLayer);
+                                if (animation.isForecast) {
+                                    forecastLayers.push(mainLayer.name);
+                                } else {
+                                    observationLayers.push(mainLayer.name);
+                                }
 
-                                if (forecastLayer !== undefined) {
-                                    _constraints.timelines[preloadingLayer.name].push(forecastLayer);
-                                    forecastLayers.push(forecastLayer.name);
-                                    _layers.push(forecastLayer);
+                                if (subLayer !== undefined) {
+                                    _constraints.timelines[mainLayer.name].push(subLayer);
+                                    forecastLayers.push(subLayer.name); // Sub-layers may only be forecast layers
+                                    _layers.push(subLayer);
                                 }
 
                             } else {
@@ -2416,7 +2420,7 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
             // Handle callback after asynchronous initialization.
             handleCallback(_options.callback, errors);
             
-            console.log("Caps", _config.getCapabilities(), _config.getConfig().updateCapabilities);
+            console.log("Caps", _config.getCapabilities());
             if (_config.getCapabilities().length && _config.getConfig().updateCapabilities) {
                 console.log("Scheduling GetCapabilities updates");
                 // GetCapabilities in use and updates requested, schedule updates
