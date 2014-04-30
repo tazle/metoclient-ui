@@ -244,20 +244,22 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
                 // Check if layer configuration has set begin and end times for animation.
                 // If whole animation has the values but layer itself does not,
                 // use animation values also for the layer as default.
-                if (animation.beginTime === undefined) {
-                    if (animation.isForecast) {
+                if (animation.isForecast) {
+                    if (animation.beginTime === undefined || animation.beginTime === "join") {
                         animation.beginTime = _configLoader.getForecastBeginDate();
-                    } else {
+                    }
+                    if (animation.endTime === undefined) {
+                        animation.endTime = _configLoader.getAnimationEndDate();
+                    }
+                } else {
+                    if (animation.beginTime === undefined) {
                         animation.beginTime = _configLoader.getAnimationBeginDate();
                     }
-                }
-                if (animation.endTime === undefined) {
-                    if (animation.isForecast) {
-                        animation.endTime = _configLoader.getAnimationEndDate();
-                    } else {
+                    if (animation.endTime === undefined) {
                         animation.endTime = _configLoader.getForecastBeginDate();
                     }
                 }
+
                 if (animation.resolutionTime) {
                     // Make sure that animation begin time of the layer is set on the correct resolution time.
                     // This is required if layer itself has defined its own resolution instead of
