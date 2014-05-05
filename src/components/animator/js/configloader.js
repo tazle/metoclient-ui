@@ -174,6 +174,11 @@ fi.fmi.metoclient.ui.animator.ConfigLoader = (function() {
                 // begin date similarly on the first forecast step below.
                 ceilDate(_forecastBeginDate, getAnimationResolution());
 
+                if (_config.animationDeltaToEndTime <= 0) {
+                    // Should match timeline end at this point, and there is no forecast information visible, so let's stop here
+                    return;
+                }
+
                 // Check all the configuration layers.
                 // The forecast begin date is the smallest date for the layer
                 // that has been defined as forecast.
@@ -619,18 +624,14 @@ fi.fmi.metoclient.ui.animator.ConfigLoader = (function() {
                     // Notice, positive value of end time is towards future.
                     // Negative value may be used if end time should be in the past.
                     _endDate = new Date();
-                    if (_config.animationDeltaToEndTime) {
-                        // Positive or negative delta value given.
-                        _endDate.setTime(_endDate.getTime() + _config.animationDeltaToEndTime);
+                    _endDate.setTime(_endDate.getTime() + _config.animationDeltaToEndTime);
+                    if (_config.animationDeltaToEndTime > 0) {
+                        // Round up if there is future, i.e forecast information in use
                         ceilDate(_endDate, getAnimationResolution());
-
                     } else {
-                        // Zero value for delta is a special case because it informs that future data is not wanted.
-                        // Notice, this floors the value below current time if resolution greater than zero and if
-                        // current time is not exactly on resolution.
+                        // Else round down so that we don't end up prematurely loading observation data
                         floorDate(_endDate, getAnimationResolution());
                     }
-
                 } else {
                     // Check if time can be gotten from layer configurations because
                     // it was not given for animation directly.
