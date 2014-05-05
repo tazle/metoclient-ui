@@ -618,7 +618,7 @@ fi.fmi.metoclient.ui.animator.ConfigLoader = (function() {
                     // Negative value may be used if end time should be in the past.
                     _endDate = new Date();
                     if (_config.animationDeltaToEndTime) {
-                        // Positive delta value given.
+                        // Positive or negative delta value given.
                         _endDate.setTime(_endDate.getTime() + _config.animationDeltaToEndTime);
                         ceilDate(_endDate, getAnimationResolution());
 
