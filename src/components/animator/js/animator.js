@@ -848,17 +848,9 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
             if (_options.legendDivId) {
                 var legendTimeout;
                 var legendEventHandler = function(event) {
-                    // TODO *Why?*
                     // Use small timeout to make sure legends are not set too close to each other
                     // if multiple actions of same kind are started in a group.
-                    if (undefined === legendTimeout) {
-                        legendTimeout = setTimeout(function() {
-                            setLegend(_options.legendDivId, layers);
-                            _resetClearTimeouts.splice(_resetClearTimeouts.indexOf(legendTimeout), 1);
-                            legendTimeout = undefined;
-                        }, 100);
-                        _resetClearTimeouts.push(legendTimeout);
-                    }
+                    setLegend(_options.legendDivId, layers);
                 };
                 var events = {
                     visibilitychanged : legendEventHandler,
