@@ -165,6 +165,12 @@ fi.fmi.metoclient.ui.animator.ConfigLoader = (function() {
          * the animation layer time values.
          */
         function checkForecastBeginDate() {
+            if (_config.animationDeltaToEndTime <= 0) {
+                // Should match timeline end
+                _forecastBeginDate = getAnimationEndDate();
+                return;
+            }
+
             if (_config && _config.layers && _config.layers.length) {
                 // The default forecast begin date is ceiled on the resolution.
                 // Then, the forecast begins on the animation step that shows the
@@ -173,11 +179,6 @@ fi.fmi.metoclient.ui.animator.ConfigLoader = (function() {
                 // Also, animation layer specific checks floor the forecast
                 // begin date similarly on the first forecast step below.
                 ceilDate(_forecastBeginDate, getAnimationResolution());
-
-                if (_config.animationDeltaToEndTime <= 0) {
-                    // Should match timeline end at this point, and there is no forecast information visible, so let's stop here
-                    return;
-                }
 
                 // Check all the configuration layers.
                 // The forecast begin date is the smallest date for the layer
