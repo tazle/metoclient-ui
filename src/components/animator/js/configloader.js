@@ -350,6 +350,8 @@ fi.fmi.metoclient.ui.animator.ConfigLoader = (function() {
                             }
                         }
                     }
+                } else {
+                    throw "ERROR: No capability information for layer " + capability.layer + " but sub-layer uses beginTime \"join\"";
                 }
             }
         }
