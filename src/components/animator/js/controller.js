@@ -525,7 +525,7 @@ fi.fmi.metoclient.ui.animator.Controller = (function() {
                     var tickEndY = getScaleAreaHeight() - (_scaleConfig.height - _scaleConfig.bgHeight);
                     var newHour = date.getMinutes() === 0 && date.getSeconds() === 0 && date.getMilliseconds() === 0;
                     if (newHour || i === 0 || i === cellCount) {
-                        // Exact hour, major tick.
+                        // Endpoint or exact hour, major tick.
                         tickEndY = getScaleAreaHeight() / 4;
                     }
 
