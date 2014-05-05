@@ -1088,6 +1088,7 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
 
             function createLegendInfoProvider(animation) {
                 if (animation.hasLegend) {
+                    console.log("Have legend");
                     // TODO Handle non-WMS/WMTS case
                     return new OpenLayers.Layer.Animation.WMSWMTSLegendInfoProvider();
                 } else {
@@ -1781,7 +1782,7 @@ fi.fmi.metoclient.ui.animator.Controller = (function() {
                     var tickEndY = getScaleAreaHeight() - (_scaleConfig.height - _scaleConfig.bgHeight);
                     var newHour = date.getMinutes() === 0 && date.getSeconds() === 0 && date.getMilliseconds() === 0;
                     if (newHour || i === 0 || i === cellCount) {
-                        // Exact hour, major tick.
+                        // Endpoint or exact hour, major tick.
                         tickEndY = getScaleAreaHeight() / 4;
                     }
 
@@ -2974,17 +2975,17 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
             if (_options.legendDivId) {
                 var legendTimeout;
                 var legendEventHandler = function(event) {
-                    // TODO *Why?*
                     // Use small timeout to make sure legends are not set too close to each other
                     // if multiple actions of same kind are started in a group.
-                    if (undefined === legendTimeout) {
-                        legendTimeout = setTimeout(function() {
-                            setLegend(_options.legendDivId, layers);
-                            _resetClearTimeouts.splice(_resetClearTimeouts.indexOf(legendTimeout), 1);
-                            legendTimeout = undefined;
-                        }, 100);
-                        _resetClearTimeouts.push(legendTimeout);
-                    }
+                    setLegend(_options.legendDivId, layers);
+                    // if (undefined === legendTimeout) {
+                    //     legendTimeout = setTimeout(function() {
+                            
+                    //         _resetClearTimeouts.splice(_resetClearTimeouts.indexOf(legendTimeout), 1);
+                    //         legendTimeout = undefined;
+                    //     }, 100);
+                    //     _resetClearTimeouts.push(legendTimeout);
+                    // }
                 };
                 var events = {
                     visibilitychanged : legendEventHandler,
@@ -3098,8 +3099,29 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
          *                                                    May not be {undefined} or {null}.
          */
         function createCtrl(ctrls, timeModel, timeController) {
+            var count = 100;
+            var pw = function() {
+                if (count-- > 0) {
+                    console.log("Width", new Date(), ctrls.width());
+                }
+            };
+            console.log("Width", ctrls.width());
+            setTimeout(pw, 0);
+            setTimeout(pw, 1);
+            setTimeout(pw, 2);
+            setTimeout(pw, 3);
+            setTimeout(pw, 5);
+            setTimeout(pw, 10);
+            setTimeout(pw, 20);
+            setTimeout(pw, 30);
+            setTimeout(pw, 40);
+            setTimeout(pw, 50);
+            setTimeout(pw, 60);
+            setTimeout(pw, 100);
+            //setInterval(pw, 10);
             var ac = new fi.fmi.metoclient.ui.animator.Controller(ctrls[0], ctrls.width(), ctrls.height());
-            ac.setTimeModel(timeModel);
+            ac.setTimeModel(timeModel); // TODO This causes stuff to be drawn
+            console.log("Width after setTimeModel", ctrls.width());
             ac.setTimeController(timeController);
             return ac;
         }
@@ -3716,6 +3738,12 @@ fi.fmi.metoclient.ui.animator.ConfigLoader = (function() {
          * the animation layer time values.
          */
         function checkForecastBeginDate() {
+            if (_config.animationDeltaToEndTime <= 0) {
+                // Should match timeline end
+                _forecastBeginDate = getAnimationEndDate();
+                return;
+            }
+
             if (_config && _config.layers && _config.layers.length) {
                 // The default forecast begin date is ceiled on the resolution.
                 // Then, the forecast begins on the animation step that shows the
@@ -3901,6 +3929,8 @@ fi.fmi.metoclient.ui.animator.ConfigLoader = (function() {
                             }
                         }
                     }
+                } else {
+                    throw "ERROR: No capability information for layer " + capability.layer + " but sub-layer uses beginTime \"join\"";
                 }
             }
         }
@@ -4168,18 +4198,16 @@ fi.fmi.metoclient.ui.animator.ConfigLoader = (function() {
                     // Notice, positive value of end time is towards future.
                     // Negative value may be used if end time should be in the past.
                     _endDate = new Date();
-                    if (_config.animationDeltaToEndTime) {
-                        // Positive delta value given.
-                        _endDate.setTime(_endDate.getTime() + _config.animationDeltaToEndTime);
+                    _endDate.setTime(_endDate.getTime() + _config.animationDeltaToEndTime);
+                    if (_config.animationDeltaToEndTime > 0) {
+                        // Round up if there is future, i.e forecast information in use
                         ceilDate(_endDate, getAnimationResolution());
-
+                        console.log("(Also) forecast, ceiling end date");
                     } else {
-                        // Zero value for delta is a special case because it informs that future data is not wanted.
-                        // Notice, this floors the value below current time if resolution greater than zero and if
-                        // current time is not exactly on resolution.
+                        // Else round down so that we don't end up prematurely loading observation data
                         floorDate(_endDate, getAnimationResolution());
+                        console.log("Only observations, flooring end date");
                     }
-
                 } else {
                     // Check if time can be gotten from layer configurations because
                     // it was not given for animation directly.
