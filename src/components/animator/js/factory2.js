@@ -452,10 +452,18 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
         }
 
         function getConstraints() {
+            // Must have generated layers first
+            if (_layers.length === 0) {
+                getLayers();
+            }
             return _constraints;
         }
 
         function getAvailableRanges() {
+            // Must have generated layers first
+            if (_layers.length === 0) {
+                getLayers();
+            }
             return _availability;
         }
 
