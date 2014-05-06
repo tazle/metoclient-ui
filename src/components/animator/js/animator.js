@@ -200,10 +200,14 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
                     // Asynchronous initialization is successful
                     newConfig.init(capabilities);
 
-                    // TODO Extract animation data
-                    // TODO Update layer ranges to coordinator
-                    // TODO Update timeline (how?)
                     _config = newConfig;
+
+                    var _tmpFactory = new fi.fmi.metoclient.ui.animator.Factory2(_config);
+
+                    var constraints = _tmpFactory.getConstraints();
+                    var availableRanges = _tmpFactory.getAvailableRanges();
+                    _coordinator.update(constraints, availableRanges);
+
                     _timeController.proposeTimePeriodChange(getBeginDate(), getEndDate(), getResolution());
                 } else {
                     // TODO Report errors
@@ -263,9 +267,9 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
             if (_config.getCapabilities().length && _config.getConfig().updateCapabilities) {
                 console.log("Scheduling GetCapabilities updates");
                 // GetCapabilities in use and updates requested, schedule updates
-                setTimeout(function() { // TODO Switch back to setIntervaland 60 second after initial testing
+                setInterval(function() {
                     updateCapabilitiesCallback();
-                }, 3000);
+                }, 60000);
             }
         }
 
