@@ -265,6 +265,7 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
             
             console.log("Caps", _config.getCapabilities());
             if (_config.getCapabilities().length && _config.getConfig().updateCapabilities) {
+                // Only update capabilities if configuration includes "updateCapabilities" with truthy value
                 console.log("Scheduling GetCapabilities updates");
                 // GetCapabilities in use and updates requested, schedule updates
                 setInterval(function() {
