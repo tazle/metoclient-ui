@@ -592,6 +592,7 @@ fi.fmi.metoclient.ui.animator.Controller = (function() {
                     var nComplete = cell.data("nComplete");
                     if (nStarted > nComplete) {
                         cell.attr("fill", nErrors > 0 ? _scaleConfig.cellErrorColor : _scaleConfig.cellLoadingColor);
+                        _timeController.proposePause();
                     }
                 }
             }
