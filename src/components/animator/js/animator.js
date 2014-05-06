@@ -132,26 +132,13 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
             scope : _me,
             // These are defined here to show which events are used.
             // Actual functions are set for these parameters later.
-            // animationloadstarted : undefined,
             frameloadstarted : undefined,
             frameloadcomplete : undefined,
-            // animationloadgroupprogress : undefined,
-            // animationloadcomplete : undefined,
-            // animationframecontentreleased : undefined,
             framechanged : undefined
         };
 
         // OpenLayers Animation layer event callbacks.
         //--------------------------------------------
-
-        // TODO Trace functionality
-        // _events.animationloadstarted = function(event) {
-        //     progressbarLoadStarted(event.layer);
-        //     firePause();
-        //     jQuery.each(_animationEventsListeners, function(index, value) {
-        //         value.loadAnimationStartedCb(event);
-        //     });
-        // };
 
         _events.frameloadstarted = function(event) {
             jQuery.each(_animationEventsListeners, function(index, value) {
@@ -164,30 +151,6 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
                 value.loadFrameCompleteCb(event);
             });
         };
-
-        // TODO Trace functionality
-        // _events.animationloadgroupprogress = function(event) {
-        //     jQuery.each(_animationEventsListeners, function(index, value) {
-        //         value.loadGroupProgressCb(event);
-        //     });
-        // };
-
-        // TODO Trace functionality
-        // _events.animationloadcomplete = function(event) {
-        //     progressbarLoadComplete(event.layer);
-        //     firePlay();
-        //     jQuery.each(_animationEventsListeners, function(index, value) {
-        //         value.loadCompleteCb(event);
-        //     });
-        // };
-
-        // TODO Trace functionality
-        // _events.animationframecontentreleased = function(event) {
-        //     progressbarLoadComplete(event.layer);
-        //     jQuery.each(_animationEventsListeners, function(index, value) {
-        //         value.animationFrameContentReleasedCb(event);
-        //     });
-        // };
 
         _events.framechanged = function(event) {
             jQuery.each(_animationEventsListeners, function(index, value) {
@@ -329,45 +292,6 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
 
         // Functions that handle events.
         //------------------------------
-
-        /**
-         * Update progressbar after layer has started loading.
-         *
-         * @param {OpenLayers.Layer} layer Layer that has started loading.
-         *                                 May be {undefined} or {null}.
-         */
-        function progressbarLoadStarted(layer) {
-            if (layer && -1 === jQuery.inArray(layer, _loadingLayers)) {
-                if (!_loadingLayers.length) {
-                    // First layer to start loading.
-                    // So, start showing progressbar.
-                    jQuery(".animatorLoadProgressbar").show();
-                }
-                // Layer was not in the loading array yet.
-                _loadingLayers.push(layer);
-            }
-        }
-
-        /**
-         * Update progressbar after layer has completed loading.
-         *
-         * @param {OpenLayers.Layer} layer Layer that has completed loading.
-         *                                 May be {undefined} or {null}.
-         */
-        function progressbarLoadComplete(layer) {
-            if (layer && _loadingLayers.length) {
-                var layerIndex = jQuery.inArray(layer, _loadingLayers);
-                if (-1 !== layerIndex) {
-                    // Remove layer from loading layers array.
-                    _loadingLayers.splice(layerIndex, 1);
-                    if (!_loadingLayers.length) {
-                        // No loading layers left.
-                        // So, stop showing progressbar.
-                        jQuery(".animatorLoadProgressbar").hide();
-                    }
-                }
-            }
-        }
 
         // Functions that provide animation default initialization values.
         //----------------------------------------------------------------

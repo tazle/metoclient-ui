@@ -555,20 +555,6 @@ fi.fmi.metoclient.ui.animator.Controller = (function() {
             }
         }
 
-        /**
-         * Common function for events that should clear cell color to default.
-         */
-        function progressCellColorToDefault(event) {
-            var items = event.events;
-            for (var i = 0; i < items.length; ++i) {
-                var time = items[i].time.getTime();
-                var cell = getCellByTime(time);
-                if (cell) {
-                    cell.attr("fill", _scaleConfig.bgColor);
-                }
-            }
-        }
-
         // Private controller functions.
         //------------------------------
 
@@ -588,10 +574,6 @@ fi.fmi.metoclient.ui.animator.Controller = (function() {
 
         // Animation event listener callbacks.
         //-----------------------------------
-
-        function loadAnimationStartedCb(event) {
-            progressCellColorToDefault(event);
-        }
 
         function loadFrameStartedCb(event) {
             var items = event.events;
@@ -638,19 +620,6 @@ fi.fmi.metoclient.ui.animator.Controller = (function() {
                     }
                 }
             }
-        }
-
-        function loadGroupProgressCb(event) {
-            // No need to do anything here because frames are handled item by item
-            // in loadFrameCompleteCb above.
-        }
-
-        function loadCompleteCb(event) {
-            // No need to do anything here because items are handled already separately.
-        }
-
-        function animationFrameContentReleasedCb(event) {
-            progressCellColorToDefault(event);
         }
 
         function frameChangedCb(event) {
@@ -815,12 +784,8 @@ fi.fmi.metoclient.ui.animator.Controller = (function() {
             });
 
             model.addAnimationEventsListener({
-                loadAnimationStartedCb : loadAnimationStartedCb,
                 loadFrameStartedCb : loadFrameStartedCb,
                 loadFrameCompleteCb : loadFrameCompleteCb,
-                loadGroupProgressCb : loadGroupProgressCb,
-                loadCompleteCb : loadCompleteCb,
-                animationFrameContentReleasedCb : animationFrameContentReleasedCb,
                 frameChangedCb : frameChangedCb
             });
 
