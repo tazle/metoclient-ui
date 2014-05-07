@@ -209,6 +209,10 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
                     _coordinator.update(constraints, availableRanges);
 
                     _timeController.proposeTimePeriodChange(getBeginDate(), getEndDate(), getResolution());
+
+                    _.each(_tmpFactory.getLayers(), function(layer) {
+                        layer.destroy();
+                    });
                 } else {
                     // TODO Report errors
                     console.error("Got async errors during config update");
