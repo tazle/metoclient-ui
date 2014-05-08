@@ -661,10 +661,6 @@ fi.fmi.metoclient.ui.animator.ConfigLoader = (function() {
         /**
          * See API for function description.
          */
-        function getCapabilities() {
-            return _.map(_capabilitiesContainer, "capabilities");
-        }
-
         function getCapabilitiesUrls() {
             // There may be multiple asynchronous operations started.
             // Counter is initialized with the total count. Then, catch can
@@ -709,16 +705,25 @@ fi.fmi.metoclient.ui.animator.ConfigLoader = (function() {
         this.getConfig = getConfig;
 
         /**
-         * @return {Array} Array of capabilities objects that may have been loaded during initialization.
-         *                 Array is always provided even if it may be empty.
-         */
-        this.getCapabilities = getCapabilities;
-
-        /**
          * @return {Array} Array of capabilities URLs that should be loaded before initializing the configuration
          *                 Array is always provided even if it may be empty.
          */
         this.getCapabilitiesUrls = getCapabilitiesUrls;
+
+        /**
+         * Get capability layer for given layer from given GetCapabilities URL
+         *
+         * @param {String} layer Layer identifier.
+         *                       Operation is ignored if {undefined}, {null} or {empty}.
+         * @param {String} url URL used for capability request.
+         *                     Proper capability object, that contains information for layer,
+         *                     is identified by the URL.
+         *                     Operation is ignored if {undefined}, {null} or {empty}.
+         * @return {Object} Layer from the loaded capabilities.
+         *                  See {fi.fmi.metoclient.ui.animator.WmsCapabilities.getLayer}.
+         *                  May be {undefined} if layer is not found.
+         */
+        this.getCapabilityLayer = getCapabilityLayer;
 
         /**
          * @return {Integer} Default zoom level that should be used with the map when layers are added to it.
