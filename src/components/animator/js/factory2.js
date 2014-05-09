@@ -171,6 +171,21 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
         };
 
 
+        /**
+         * Get availability object for single layer, formatted as required for getAvailableRanges
+         *
+         * @param {Object} capabilities Layer capability information as defined in {fi.fmi.metoclient.ui.animator.WmsCapabilities.getLayer}. Must not be null or undefined.
+         */
+        function availabilityFromCapabilities(capabilities) {
+            var time = capabilities.dimensions.time;
+            if (time !== undefined) {
+                var timeString = time.values.join(",");
+                return fi.fmi.metoclient.ui.animator.WmsCapabilities.parseWmsTime(timeString);
+            } else {
+                throw "Missing time dimension for layer " + capabilities.name;
+            }
+        }
+
         // Public functions for API.
         // ------------------------
 
@@ -322,7 +337,14 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
                         var args = [name, url, params, options];
                         var legendInfoProvider = createLegendInfoProvider(options.animation);
                         fillWmsDefaults(args);
-                        return createLayer(klass, name, args, legendInfoProvider);
+
+                        var capabilities;
+                        if (layerConf.capabilities !== undefined) {
+                            console.log(_configLoader);
+                            capabilities = _configLoader.getCapabilityLayer(subLayer.layer, layerConf.capabilities.url);
+                        }
+
+                        return createLayer(klass, name, args, legendInfoProvider, capabilities);
                     });
                     return layers[0];
                 }
@@ -341,12 +363,17 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
                 }
             }
 
-            function createLayer(klass, name, args, legendInfoProvider) {
-                // TODO Constraints and availability
+            function createLayer(klass, name, args, legendInfoProvider, capabilities) {
                 var layerFactory = layerFactoryFor(klass, args);
 
                 var animation = args[3].animation;
-                _availability[name] = timestep.restricted(animation.beginTime, animation.endTime, animation.resolutionTime);
+                if (capabilities === undefined) {
+                    _availability[name] = timestep.restricted(animation.beginTime, animation.endTime, animation.resolutionTime);
+                    console.log("Pseudo availability for layer", name, ":", _availability[name]);
+                } else {
+                    _availability[name] = availabilityFromCapabilities(capabilities);
+                    console.log("Actual capability information for layer", name, ":", _availability[name]);
+                }
 
                 return new OpenLayers.Layer.Animation.PreloadingTimedLayer(name, {
                     "layerFactory" : layerFactory,
@@ -422,8 +449,13 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
 
                                 var legendInfoProvider = createLegendInfoProvider(animation);
 
+                                var capabilities;
+                                if (config.capabilities !== undefined) {
+                                    capabilities = _configLoader.getCapabilityLayer(config.capabilities.layer, config.capabilities.url);
+                                }
+
                                 // TODO Hack, asssume args[0] is layer name
-                                var mainLayer = createLayer(klass, config.args[0], config.args, legendInfoProvider);
+                                var mainLayer = createLayer(klass, config.args[0], config.args, legendInfoProvider, capabilities);
 
                                 _constraints.timelines[mainLayer.name] = [mainLayer];
                                 _layers.push(mainLayer);
