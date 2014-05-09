@@ -389,8 +389,8 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
             _availability = {};
             
             var retainer = new OpenLayers.Layer.Animation.RetainRange();
-            var nextTimeSelector = new OpenLayers.Layer.Animation.ShowNextAvailable();
-            var previousTimeSelector = new OpenLayers.Layer.Animation.ShowPreviousAvailable();
+            var nextTimeSelector = new OpenLayers.Layer.Animation.ShowOnlyInrangeWrapper(new OpenLayers.Layer.Animation.ShowNextAvailable(), _configLoader.getAnimationResolution());
+            var previousTimeSelector = new OpenLayers.Layer.Animation.ShowOnlyInrangeWrapper(new OpenLayers.Layer.Animation.ShowPreviousAvailable(), _configLoader.getAnimationResolution());
             var preloader = new OpenLayers.Layer.Animation.PreloadAll();
             var fader = new OpenLayers.Layer.Animation.ImmediateFader();
 
