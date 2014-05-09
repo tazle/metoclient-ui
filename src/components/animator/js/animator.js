@@ -329,6 +329,14 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
         }
 
         /**
+         * @return {Integer} Animation frame rate should be gotten from the configuration.
+         *                   Otherwise, {undefined}.
+         */
+        function getFrameRate() {
+            return _config.getAnimationFrameRate();
+        }
+
+        /**
          * @return {Date} The forecast begin date for the whole animation.
          *                May not be {undefined}.
          */
@@ -931,6 +939,9 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
                         },
                         getResolution : function() {
                             return getResolution();
+                        },
+                        getFrameRate : function() {
+                            return getFrameRate();
                         },
                         getForecastStartTime : function() {
                             return getForecastBeginDate().getTime();
