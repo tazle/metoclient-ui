@@ -1083,9 +1083,9 @@ OpenLayers.Layer.Animation.PreloadAll = OpenLayers.Class(OpenLayers.Layer.Animat
         },
 
         setSubLayerVisibility : function(layer, visibility) {
-            var k = layer.getTime().toISOString();
-            this._visibilityMap[k] = visibility;
-            layer.setVisibility(this.getVisibility() && this._visibilityMap[k]);
+            // var k = layer.getTime().toISOString();
+            // this._visibilityMap[k] = visibility;
+            // layer.setVisibility(this.getVisibility() && this._visibilityMap[k]);
         },
 
         loadLayer : function(t) {
@@ -1095,6 +1095,7 @@ OpenLayers.Layer.Animation.PreloadAll = OpenLayers.Class(OpenLayers.Layer.Animat
                 console.log("Loading", t);
                 layer = this._layerFactory(t);
                 this.initLayer(layer);
+                this._visibilityMap[k] = true;
                 this.reconfigureLayer(layer);
                 this._layers[k] = layer;
             }
