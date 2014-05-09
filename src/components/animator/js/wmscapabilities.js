@@ -240,6 +240,37 @@ fi.fmi.metoclient.ui.animator.WmsCapabilities = (function() {
     /**
      * See API for function description.
      */
+    function parseWmsTime(rawTimeExtent) {
+        var intervalRe = new RegExp("^.+/.+/P.+$");
+        var listRe = new RegExp("^.+,.+$");
+        if (intervalRe.exec(rawTimeExtent)) {
+            var parts = rawTimeExtent.split("/");
+            var start = new Date(parts[0]);
+            var end = new Date(parts[1]);
+            var _step = parts[2];
+
+            var re = /PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/;
+            var result = _step.match(re);
+            if (result !== null) {
+                var _result = _.defaults(result, [0,0,0,0]);
+                var h = _result[1];
+                var m = _result[2];
+                var s = _result[3];
+                var step_ms = 1000*(h*60*60+m*60+s);
+                return timestep.restricted(start, end, step_ms);
+            } else {
+                throw "Time steps longer than one day not supported";
+            }
+        } else if (listRe.exec(rawTimeExtent)) {
+            return timestep.list(_.map(rawTimeExtent.split(","), function(x) {return new Date(x);}));
+        } else {
+            return timestep.list([new Date(rawTimeExtent)]);
+        }
+    }
+
+    /**
+     * See API for function description.
+     */
     function getRequestUrl(capabilities) {
         var url;
         if (capabilities && capabilities.capability && capabilities.capability.request && capabilities.capability.request.getcapabilities && capabilities.capability.request.getcapabilities.href) {
@@ -458,7 +489,17 @@ fi.fmi.metoclient.ui.animator.WmsCapabilities = (function() {
          *                       Operation is ignored if {undefined} or {null}.
          * @return {Date} Date for end time. May be {undefined}.
          */
-        getEndTime : getEndTime
+        getEndTime : getEndTime,
+
+        /**
+         * Get complete timestep definition given layer time dimension.
+         *
+         * @param {String} rawTimeExtent WMS TIME extent string. Must not be undefined or null.
+         *                       
+         * @return {timestep} Timestep describing the times available for the layer.
+         */
+        parseWmsTime : parseWmsTime
+
 
     };
 
