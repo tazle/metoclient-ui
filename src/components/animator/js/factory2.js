@@ -405,7 +405,8 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
             var observationLayers = [];
             var forecastLayers = [];
 
-            _constraints["rangeGroups"]["observation"] = {range: [_configLoader.getAnimationBeginDate(), _configLoader.getForecastBeginDate()], layers: observationLayers};
+            var lastObservation = new Date(_configLoader.getForecastBeginDate().getTime() - _configLoader.getAnimationResolution());
+            _constraints["rangeGroups"]["observation"] = {range: [_configLoader.getAnimationBeginDate(), _configLoader.getObservationEndDate()], layers: observationLayers};
             _constraints["rangeGroups"]["forecast"] = {range: [_configLoader.getForecastBeginDate(), _configLoader.getAnimationEndDate()], layers: forecastLayers};
 
             function processConfig() {

@@ -114,6 +114,8 @@ fi.fmi.metoclient.ui.animator.ConfigLoader = (function() {
         // Current time or the smallest forecast time from
         // layers is used for the whole animation.
         var _forecastBeginDate = new Date();
+        // Observation end date will be adjusted depending on whether forecasts are used
+        var _observationEndDate = new Date();
 
         // Private member functions.
         //--------------------------
@@ -168,6 +170,7 @@ fi.fmi.metoclient.ui.animator.ConfigLoader = (function() {
             if (_config.animationDeltaToEndTime <= 0) {
                 // Should match timeline end
                 _forecastBeginDate = getAnimationEndDate();
+                _observationEndDate = getAnimationEndDate();
                 return;
             }
 
@@ -179,6 +182,7 @@ fi.fmi.metoclient.ui.animator.ConfigLoader = (function() {
                 // Also, animation layer specific checks floor the forecast
                 // begin date similarly on the first forecast step below.
                 ceilDate(_forecastBeginDate, getAnimationResolution());
+                _observationEndDate = new Date(_forecastBeginDate.getTime() - getAnimationResolution());
 
                 // Check all the configuration layers.
                 // The forecast begin date is the smallest date for the layer
@@ -224,6 +228,7 @@ fi.fmi.metoclient.ui.animator.ConfigLoader = (function() {
                                         if (undefined !== tmpBeginDate && (undefined === _forecastBeginDate || _forecastBeginDate.getTime() > tmpBeginDate.getTime())) {
                                             // Forecast begin time is always Date instance.
                                             _forecastBeginDate = tmpBeginDate;
+                                            _observationEndDate = new Date(_forecastBeginDate.getTime() - getAnimationResolution());
                                         }
                                     }
                                     // Check also sub-layers of the animation layer.
@@ -253,6 +258,7 @@ fi.fmi.metoclient.ui.animator.ConfigLoader = (function() {
                                                 if (undefined !== tmpBeginDate && (undefined === _forecastBeginDate || _forecastBeginDate.getTime() > tmpBeginDate.getTime())) {
                                                     // Forecast begin time is always Date instance.
                                                     _forecastBeginDate = tmpBeginDate;
+                                                    _observationEndDate = new Date(_forecastBeginDate.getTime() - getAnimationResolution());
                                                 }
                                             }
                                         }
@@ -661,6 +667,13 @@ fi.fmi.metoclient.ui.animator.ConfigLoader = (function() {
         /**
          * See API for function description.
          */
+        function getObservationEndDate() {
+            return _observationEndDate;
+        }
+
+        /**
+         * See API for function description.
+         */
         function getCapabilitiesUrls() {
             // There may be multiple asynchronous operations started.
             // Counter is initialized with the total count. Then, catch can
@@ -778,6 +791,18 @@ fi.fmi.metoclient.ui.animator.ConfigLoader = (function() {
          *                May not be {undefined}.
          */
         this.getForecastBeginDate = getForecastBeginDate;
+
+        /**
+         * Get the observation end date for the whole animation.
+         *
+         * If there are no forecasts, observations end at animation
+         * end. Otherwise they end at the previous timestep from
+         * start of forecast .
+         *
+         * @return {Date} The observation end date for the whole animation.
+         *                May not be {undefined}.
+         */
+        this.getObservationEndDate = getObservationEndDate;
     };
 
     // Constructor function for new instantiation.
