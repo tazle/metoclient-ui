@@ -55,6 +55,9 @@ fi.fmi.metoclient.ui.animator.Controller = (function() {
         var _scaleConfig;
         var _sliderConfig;
 
+        // Set through schedulePause() when loading starts, is cleared by cancelPause() or by itself if it gets to fire
+        var _pauseTimeout;
+
         // Scale member variables.
         //------------------------
 
@@ -572,6 +575,36 @@ fi.fmi.metoclient.ui.animator.Controller = (function() {
             _rightHotSpot.toFront();
         }
 
+        function nFramesLoading() {
+            var nLoading = 0;
+            for (var i = 0; i < _progressCellSet.length; ++i) {
+                var cell = _progressCellSet[i];
+                var nStarted = cell.data("nStarted");
+                var nComplete = cell.data("nComplete");
+                if (nStarted > nComplete) {
+                    nLoading += 1;
+                }
+            }
+            return nLoading;
+        }
+
+        function schedulePause() {
+            if (_pauseTimeout === undefined) {
+                // No ongoing pause, schedule one
+                _pauseTimeout = setTimeout(function() {
+                    _timeController.proposePause();
+                    _pauseTimeout = undefined;
+                }, _model.getFrameRate() * 3/4);
+            }
+        }
+
+        function cancelPause() {
+            if (_pauseTimeout !== undefined) {
+                clearTimeout(_pauseTimeout);
+                _pauseTimeout = undefined;
+            }
+        }
+
         // Animation event listener callbacks.
         //-----------------------------------
 
@@ -592,7 +625,7 @@ fi.fmi.metoclient.ui.animator.Controller = (function() {
                     var nComplete = cell.data("nComplete");
                     if (nStarted > nComplete) {
                         cell.attr("fill", nErrors > 0 ? _scaleConfig.cellErrorColor : _scaleConfig.cellLoadingColor);
-                        _timeController.proposePause();
+                        schedulePause();
                     }
                 }
             }
@@ -615,6 +648,10 @@ fi.fmi.metoclient.ui.animator.Controller = (function() {
                     var nStarted = cell.data("nStarted");
                     if (nComplete >= nStarted) {
                         cell.attr("fill", nErrors > 0 ? _scaleConfig.cellErrorColor : _scaleConfig.cellReadyColor);
+                        if (nFramesLoading() === 0) {
+                            // Loading has stopped, cancel any scheduled animation pause
+                            cancelPause();
+                        }
                         if (nComplete > nStarted) {
                             console.error("BUG? complete: ", nComplete, "started: ", nStarted);
                         }
