@@ -380,7 +380,7 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
                     "preloadPolicy" : preloader,
                     "retainPolicy" : retainer,
                     "fader" : fader,
-                    "timeSelector" : previousTimeSelector,
+                    "timeSelector" : animation.isForecast ? nextTimeSelector : previousTimeSelector,
                     "legendInfoProvider" : legendInfoProvider,
                     "displayInLayerSwitcher" : false
                 });
