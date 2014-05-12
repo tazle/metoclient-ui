@@ -349,6 +349,10 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
                             capabilities = _configLoader.getCapabilityLayer(subLayer.layer, layerConf.capabilities.url);
                         }
 
+                        if (options.animation.isForecast && !haveForecast) {
+                            // ILMANET-1016 fix, don't generate forecast layers if there is no forecast range
+                            return undefined;
+                        }
                         return createLayer(klass, name, args, legendInfoProvider, capabilities);
                     });
                     return layers[0];
@@ -413,6 +417,8 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
             _constraints["rangeGroups"]["observation"] = {range: [_configLoader.getAnimationBeginDate(), _configLoader.getObservationEndDate()], layers: observationLayers};
             _constraints["rangeGroups"]["forecast"] = {range: [_configLoader.getForecastBeginDate(), _configLoader.getAnimationEndDate()], layers: forecastLayers};
 
+            var haveForecast = _configLoader.getObservationEndDate().getTime() !== _configLoader.getAnimationEndDate().getTime();
+
             function processConfig() {
                 // Create layers only if layers have not been created before.
                 if (_config && _config.layers) {
@@ -426,6 +432,11 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
                             var animation = findAnimation(config.args);
                             if (animation) {
                                 fillOutAnimation(animation);
+
+                                if (animation.isForecast && !haveForecast) {
+                                    // ILMANET-1016 fix, don't create forecast layers if there is no forecast range
+                                    continue;
+                                }
 
                                 // Interpret legacy layer names and create corresponding wrappers
                                 var klass;
