@@ -329,6 +329,11 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
                     console.log("Found subLayers for layer", layerConf.args[0]);
                     var layers = _.map(subLayers, function(subLayer) {
                         var name = subLayer.name;
+                        if (name === undefined) {
+                            // TODO ILMANET-1015: Generate name or forbid configurations without name for sublayers?
+                            // Currently generated name
+                            name = layerConf.args[0] + "_" + subLayer.layer;
+                        }
                         var url = layerConf.args[1];
                         var params = {layers : subLayer.layer};
                         var options = {animation : _.pick(subLayer, ["beginTime", "endTime", "resolutionTime", "hasLegend", "isForecast"])};
