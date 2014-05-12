@@ -774,7 +774,7 @@ OpenLayers.Layer.Animation.TimedFader = OpenLayers.Class(OpenLayers.Layer.Animat
             this._layers = {}; // Mapping layer id -> layer
             this._constraints = undefined; // Set in update()
             this._time = undefined; // Set in setTime()
-            _.each(layers, function(l) {this._layers[l.name] = l;}, this);
+            _.each(layers, function(l) {this._layers[l.id] = l;}, this);
             this.update(constraints, availableRanges);
         },
 
@@ -810,13 +810,13 @@ OpenLayers.Layer.Animation.TimedFader = OpenLayers.Class(OpenLayers.Layer.Animat
             this._constraints = constraints;
             var restrictedTimesteps = {};
             var availableTimesteps = {};
-            _.each(availableRanges, function(availableRange, layerName) {
-                availableTimesteps[layerName] = availableRange;
+            _.each(availableRanges, function(availableRange, layerId) {
+                availableTimesteps[layerId] = availableRange;
 
                 // TODO Should get actual timestep value from somewhere
                 var globallyLimitedTimestep = timestep.restricted(constraints.globalRange[0], constraints.globalRange[1], 300000);
                 var rangeGroupId = _.findKey(constraints.rangeGroups, function(rangeGroup) {
-                    return _.contains(rangeGroup.layers, layerName);
+                    return _.contains(rangeGroup.layers, layerId);
                 });
 
                 var result;
@@ -826,16 +826,17 @@ OpenLayers.Layer.Animation.TimedFader = OpenLayers.Class(OpenLayers.Layer.Animat
                     result = limitTimestep(globallyLimitedTimestep, constraints.rangeGroups[rangeGroupId].range);
                 }
 
-                restrictedTimesteps[layerName] = result;
+                restrictedTimesteps[layerId] = result;
             }, this);
 
-            _.each(this._layers, function(layer, layerName) {
-                var limitedRange = restrictedTimesteps[layerName];
-                var availableRange = availableTimesteps[layerName];
+            _.each(this._layers, function(layer, layerId) {
+                var limitedRange = restrictedTimesteps[layerId];
+                var availableRange = availableTimesteps[layerId];
                 if (limitedRange !== undefined && availableRange !== undefined) {
+
                     layer.setRange(limitedRange, availableRange);
                 } else {
-                    throw "Undefined range for layer " + layerName + ", visible: " + limitedRange + ", available: " + availableRange;
+                    throw "Undefined range for layer " + layer.name + ", visible: " + limitedRange + ", available: " + availableRange;
                 }
             });
         },
@@ -1083,9 +1084,9 @@ OpenLayers.Layer.Animation.PreloadAll = OpenLayers.Class(OpenLayers.Layer.Animat
         },
 
         setSubLayerVisibility : function(layer, visibility) {
-            // var k = layer.getTime().toISOString();
-            // this._visibilityMap[k] = visibility;
-            // layer.setVisibility(this.getVisibility() && this._visibilityMap[k]);
+            var k = layer.getTime().toISOString();
+            this._visibilityMap[k] = visibility;
+            layer.setVisibility(this.getVisibility() && this._visibilityMap[k]);
         },
 
         loadLayer : function(t) {
@@ -1095,7 +1096,7 @@ OpenLayers.Layer.Animation.PreloadAll = OpenLayers.Class(OpenLayers.Layer.Animat
                 console.log("Loading", t);
                 layer = this._layerFactory(t);
                 this.initLayer(layer);
-                this._visibilityMap[k] = true;
+//                this._visibilityMap[k] = true;
                 this.reconfigureLayer(layer);
                 this._layers[k] = layer;
             }
@@ -1137,7 +1138,9 @@ OpenLayers.Layer.Animation.PreloadAll = OpenLayers.Class(OpenLayers.Layer.Animat
             // TODO Need to track whether fade is in progress? Should not start multiple faders concurrently.
             if (layer !== previousLayer) {
                 this.setSubLayerVisibility(layer, true);
-                this._fader.fade(this, previousLayer, layer, hidePrevious);
+                setTimeout(_.bind(function() {
+                    this._fader.fade(this, previousLayer, layer, hidePrevious);
+                }, this));
             }
 
             var preloadTimes = this._preloadPolicy.preloadAt(this, shownTime);
