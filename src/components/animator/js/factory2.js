@@ -213,8 +213,8 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
         }
 
         function getControlLayers() {
-            return _.map(_constraints.timelines, function(layers, name) {
-                return new OpenLayers.Layer.Animation.ControlLayer(name, {layers: layers});
+            return _.map(_constraints.timelines, function(layers, mainLayerId) {
+                return new OpenLayers.Layer.Animation.ControlLayer(layers[0].name, {layers: layers});
             });
         }
 
@@ -376,15 +376,8 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
                 var layerFactory = layerFactoryFor(klass, args);
 
                 var animation = args[3].animation;
-                if (capabilities === undefined) {
-                    _availability[name] = timestep.restricted(animation.beginTime, animation.endTime, animation.resolutionTime);
-                    console.log("Pseudo availability for layer", name, ":", _availability[name]);
-                } else {
-                    _availability[name] = availabilityFromCapabilities(capabilities);
-                    console.log("Actual capability information for layer", name, ":", _availability[name]);
-                }
 
-                return new OpenLayers.Layer.Animation.PreloadingTimedLayer(name, {
+                var layer = new OpenLayers.Layer.Animation.PreloadingTimedLayer(name, {
                     "layerFactory" : layerFactory,
                     "preloadPolicy" : preloader,
                     "retainPolicy" : retainer,
@@ -393,6 +386,16 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
                     "legendInfoProvider" : legendInfoProvider,
                     "displayInLayerSwitcher" : false
                 });
+
+                if (capabilities === undefined) {
+                    _availability[layer.id] = timestep.restricted(animation.beginTime, animation.endTime, animation.resolutionTime);
+                    console.log("Pseudo availability for layer", layer.name, ":", _availability[layer.id]);
+                } else {
+                    _availability[layer.id] = availabilityFromCapabilities(capabilities);
+                    console.log("Actual capability information for layer", layer.name, ":", _availability[layer.id]);
+                }
+
+                return layer;
             }
 
             _availability = {};
@@ -473,17 +476,17 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
                                 // TODO Hack, asssume args[0] is layer name
                                 var mainLayer = createLayer(klass, config.args[0], config.args, legendInfoProvider, capabilities);
 
-                                _constraints.timelines[mainLayer.name] = [mainLayer];
+                                _constraints.timelines[mainLayer.id] = [mainLayer];
                                 _layers.push(mainLayer);
                                 if (animation.isForecast) {
-                                    forecastLayers.push(mainLayer.name);
+                                    forecastLayers.push(mainLayer.id);
                                 } else {
-                                    observationLayers.push(mainLayer.name);
+                                    observationLayers.push(mainLayer.id);
                                 }
 
                                 if (subLayer !== undefined) {
-                                    _constraints.timelines[mainLayer.name].push(subLayer);
-                                    forecastLayers.push(subLayer.name); // Sub-layers may only be forecast layers
+                                    _constraints.timelines[mainLayer.id].push(subLayer);
+                                    forecastLayers.push(subLayer.id); // Sub-layers may only be forecast layers
                                     _layers.push(subLayer);
                                 }
 
