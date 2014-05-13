@@ -456,18 +456,18 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
                                 // TODO Hack, asssume args[0] is layer name
                                 var mainLayer = createLayer(klass, config.args[0], config.args, legendInfoProvider, config.capabilities);
 
-                                _constraints.timelines[mainLayer.id] = [mainLayer];
                                 _layers.push(mainLayer);
+                                _constraints.timelines[mainLayer.name] = [mainLayer];
                                 if (animation.isForecast) {
-                                    forecastLayers.push(mainLayer.id);
+                                    forecastLayers.push(mainLayer.name);
                                 } else {
-                                    observationLayers.push(mainLayer.id);
+                                    observationLayers.push(mainLayer.name);
                                 }
 
                                 if (subLayer !== undefined) {
-                                    _constraints.timelines[mainLayer.id].push(subLayer);
-                                    forecastLayers.push(subLayer.id); // Sub-layers may only be forecast layers
                                     _layers.push(subLayer);
+                                    _constraints.timelines[mainLayer.name].push(subLayer);
+                                    forecastLayers.push(subLayer.name); // Sub-layers may only be forecast layers
                                 }
 
                             } else {
