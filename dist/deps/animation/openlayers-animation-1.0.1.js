@@ -680,7 +680,9 @@ OpenLayers.Layer.Animation = OpenLayers.Class(OpenLayers.Layer, {
             _.each(this._layers, function(layer) {
                 layer.setVisibility(visibility);
             });
-        }
+        },
+        
+        CLASS_NAME : "OpenLayers.Layer.Animation.ControlLayer"
     });
 })();
 
@@ -698,7 +700,9 @@ OpenLayers.Layer.Animation.Fader = OpenLayers.Class({
      */
     fade : function(parentLayer, fadeOut, fadeIn, afterFade) {
         throw "This is an interface";
-    }
+    },
+
+    CLASS_NAME : "OpenLayers.Layer.Animation.Fader"
 });
 
 OpenLayers.Layer.Animation.ImmediateFader = OpenLayers.Class(OpenLayers.Layer.Animation.Fader, {
@@ -713,7 +717,9 @@ OpenLayers.Layer.Animation.ImmediateFader = OpenLayers.Class(OpenLayers.Layer.An
             fadeIn.setOpacity(parentLayer.getOpacity());
         }
         afterFade();
-    }
+    },
+
+    CLASS_NAME : "OpenLayers.Layer.Animation.ImmediateFader"
 });
 
 OpenLayers.Layer.Animation.TimedFader = OpenLayers.Class(OpenLayers.Layer.Animation.Fader, {
@@ -750,7 +756,9 @@ OpenLayers.Layer.Animation.TimedFader = OpenLayers.Class(OpenLayers.Layer.Animat
                 afterFade();
             }
         }, this.step);
-    }
+    },
+
+    CLASS_NAME : "OpenLayers.Layer.Animation.TimedFader"
 });
 
 // "use strict";
@@ -848,6 +856,8 @@ OpenLayers.Layer.Animation.TimedFader = OpenLayers.Class(OpenLayers.Layer.Animat
             return _.keys(this._constraints.timelines);
         },
 
+
+        CLASS_NAME : "OpenLayers.Layer.Animation.LayerGroupCoordinator"
     });
 })();
 
@@ -862,7 +872,9 @@ OpenLayers.Layer.Animation.LegendInfoProvider = OpenLayers.Class({
      */
     provideLegendInfo : function(preloadingLayer) {
         throw "This is an interface";
-    }
+    },
+
+    CLASS_NAME : "OpenLayers.Layer.Animation.LegendInfoProvider"
 });
 
 OpenLayers.Layer.Animation.DisabledLegendInfoProvider = OpenLayers.Class(OpenLayers.Layer.Animation.LegendInfoProvider, {
@@ -870,7 +882,9 @@ OpenLayers.Layer.Animation.DisabledLegendInfoProvider = OpenLayers.Class(OpenLay
     },
     provideLegendInfo : function(rangedLayer) {
         return [];
-    }
+    },
+
+    CLASS_NAME : "OpenLayers.Layer.Animation.DisabledLegendInfoProvider"
 });
 
 OpenLayers.Layer.Animation.FixedLegendInfoProvider = OpenLayers.Class(OpenLayers.Layer.Animation.LegendInfoProvider, {
@@ -879,7 +893,9 @@ OpenLayers.Layer.Animation.FixedLegendInfoProvider = OpenLayers.Class(OpenLayers
     },
     provideLegendInfo : function(rangedLayer) {
         return [this.legendInfo];
-    }
+    },
+
+    CLASS_NAME : "OpenLayers.Layer.Animation.FixedLegendInfoProvider"
 });
 
 OpenLayers.Layer.Animation.WMSWMTSLegendInfoProvider = OpenLayers.Class(OpenLayers.Layer.Animation.LegendInfoProvider, {
@@ -916,7 +932,9 @@ OpenLayers.Layer.Animation.WMSWMTSLegendInfoProvider = OpenLayers.Class(OpenLaye
         });
 
         return info;
-    }
+    },
+
+    CLASS_NAME : "OpenLayers.Layer.Animation.WMSWMTSLegendInfoProvider"
 });
 
 // "use strict";
@@ -932,7 +950,9 @@ OpenLayers.Layer.Animation.PreloadPolicy = OpenLayers.Class({
      */
     preloadAt : function(rangedLayer, t) {
         throw "This is an interface";
-    }
+    },
+
+    CLASS_NAME : "OpenLayers.Layer.Animation.PreloadPolicy"
 });
 
 OpenLayers.Layer.Animation.PreloadDisabled = OpenLayers.Class(OpenLayers.Layer.Animation.PreloadPolicy, {
@@ -940,7 +960,9 @@ OpenLayers.Layer.Animation.PreloadDisabled = OpenLayers.Class(OpenLayers.Layer.A
     },
     preloadAt : function(layer, t) {
         return [];
-    }
+    },
+
+    CLASS_NAME : "OpenLayers.Layer.Animation.PreloadDisabled"
 });
 
 OpenLayers.Layer.Animation.PreloadNext = OpenLayers.Class(OpenLayers.Layer.Animation.PreloadPolicy, {
@@ -962,7 +984,9 @@ OpenLayers.Layer.Animation.PreloadNext = OpenLayers.Class(OpenLayers.Layer.Anima
             console.log(t, "next", next);
             return [next];
         }
-    }
+    },
+
+    CLASS_NAME : "OpenLayers.Layer.Animation.PreloadNext"
 });
 
 OpenLayers.Layer.Animation.PreloadAll = OpenLayers.Class(OpenLayers.Layer.Animation.PreloadPolicy, {
@@ -980,7 +1004,9 @@ OpenLayers.Layer.Animation.PreloadAll = OpenLayers.Class(OpenLayers.Layer.Animat
             // Can't preload all, one range endpoint undefined
             return [];
         }
-    }
+    },
+
+    CLASS_NAME : "OpenLayers.Layer.Animation.PreloadAll"
 });
 
 // "use strict";
@@ -990,12 +1016,20 @@ OpenLayers.Layer.Animation.PreloadAll = OpenLayers.Class(OpenLayers.Layer.Animat
         if (!_.isFunction(options.layerFactory)) {
             throw "layerFactory must be a function";
         }
-        var objectProps = ["preloadPolicy", "retainPolicy", "fader", "timeSelector"];
+        var objectProps = ["preloadPolicy", "retainPolicy", "fader", "timeSelector", "legendInfoProvider"];
         _.each(objectProps, function(propName) {
             if (!_.isObject(options[propName])) {
                 throw (propName +" must be an object");
             }
         });
+
+        var functionProps = ["layerFactory"];
+        _.each(functionProps, function(propName) {
+            if (!_.isFunction(options[propName])) {
+                throw (propName +" must be a function");
+            }
+        });
+
     }
 
     OpenLayers.Layer.Animation.PreloadingTimedLayer = OpenLayers.Class(OpenLayers.Layer, OpenLayers.Layer.Animation.TimedLayer, OpenLayers.Layer.Animation.RangedLayer, {
@@ -1262,7 +1296,9 @@ OpenLayers.Layer.Animation.PreloadAll = OpenLayers.Class(OpenLayers.Layer.Animat
          */
         getCapabilities : function() {
             return this._capabilities;
-        }
+        },
+
+        CLASS_NAME : "OpenLayers.Layer.Animation.PreloadingTimedLayer"
     });
 })();
 
@@ -1344,6 +1380,7 @@ OpenLayers.Layer.Animation.RangedLayer = OpenLayers.Class({
         throw "This is an interface";
     },
 
+    CLASS_NAME : "OpenLayers.Layer.Animation.RangedLayer"
 });
 
 // "use strict";
@@ -1359,7 +1396,9 @@ OpenLayers.Layer.Animation.RetainPolicy = OpenLayers.Class({
      */
     retain : function(times) {
         throw "This is an interface";
-    }
+    },
+
+    CLASS_NAME : "OpenLayers.Layer.Animation.RetainPolicy"
 });
 
 OpenLayers.Layer.Animation.RetainAll = OpenLayers.Class(OpenLayers.Layer.Animation.RetainPolicy, {
@@ -1368,7 +1407,9 @@ OpenLayers.Layer.Animation.RetainAll = OpenLayers.Class(OpenLayers.Layer.Animati
 
     retain : function(layer, times) {
         return times;
-    }
+    },
+
+    CLASS_NAME : "OpenLayers.Layer.Animation.RetainAll"
 });
 
 OpenLayers.Layer.Animation.RetainRange = OpenLayers.Class(OpenLayers.Layer.Animation.RetainPolicy, {
@@ -1379,7 +1420,9 @@ OpenLayers.Layer.Animation.RetainRange = OpenLayers.Class(OpenLayers.Layer.Anima
         var start = range.startTime();
         var end = range.endTime();
         return _.filter(times, function(t) {return (start === undefined || t >= start) && (end === undefined || t <= end);});
-    }
+    },
+
+    CLASS_NAME : "OpenLayers.Layer.Animation.RetainRange"
 });
 
 
@@ -1395,7 +1438,9 @@ OpenLayers.Layer.Animation.TimeSelector = OpenLayers.Class({
      */
     selectTime : function(rangedLayer, t) {
         throw "This is an interface";
-    }
+    },
+
+    CLASS_NAME : "OpenLayers.Layer.Animation.TimeSelector"
 });
 
 OpenLayers.Layer.Animation.ShowPreviousAvailable = OpenLayers.Class(OpenLayers.Layer.Animation.TimeSelector, {
@@ -1411,7 +1456,9 @@ OpenLayers.Layer.Animation.ShowPreviousAvailable = OpenLayers.Class(OpenLayers.L
         } else {
             return undefined;
         }
-    }
+    },
+
+    CLASS_NAME : "OpenLayers.Layer.Animation.ShowPreviousAvailable"
 });
 
 OpenLayers.Layer.Animation.ShowNextAvailable = OpenLayers.Class(OpenLayers.Layer.Animation.TimeSelector, {
@@ -1427,7 +1474,9 @@ OpenLayers.Layer.Animation.ShowNextAvailable = OpenLayers.Class(OpenLayers.Layer
         } else {
             return undefined;
         }
-    }
+    },
+
+    CLASS_NAME : "OpenLayers.Layer.Animation.ShowNextAvailable"
 });
 
 OpenLayers.Layer.Animation.ShowOnlyAvailable = OpenLayers.Class(OpenLayers.Layer.Animation.TimeSelector, {
@@ -1448,7 +1497,9 @@ OpenLayers.Layer.Animation.ShowOnlyAvailable = OpenLayers.Class(OpenLayers.Layer
         } else {
             return undefined;
         }
-    }
+    },
+
+    CLASS_NAME : "OpenLayers.Layer.Animation.ShowOnlyAvailable"
 });
 
 /**
@@ -1466,7 +1517,9 @@ OpenLayers.Layer.Animation.ShowOnlyInrangeWrapper = OpenLayers.Class(OpenLayers.
         } else {
             return undefined;
         }
-    }
+    },
+
+    CLASS_NAME : "OpenLayers.Layer.Animation.ShowOnlyInrangeWrapper"
 });
 
 // "use strict";
@@ -1493,7 +1546,9 @@ OpenLayers.Layer.Animation.TimedLayer = OpenLayers.Class({
      */
     getTime : function() {
         throw "This is an interface";
-    }
+    },
+
+    CLASS_NAME : "OpenLayers.Layer.Animation.TimedLayer"
 });
 
 // "use strict";
@@ -1512,7 +1567,9 @@ OpenLayers.Layer.Animation.TimedLayerClassWrapper = function(klass, options) {
 
         getTime : function() {
             return this._time;
-        }
+        },
+
+        CLASS_NAME : "OpenLayers.Layer.Animation.TimedLayerClassWrapper(" + klass.CLASS_NAME + ")"
     });
 };
 
