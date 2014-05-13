@@ -2258,6 +2258,34 @@ if ("undefined" === typeof fi.fmi.metoclient.ui.animator.Controller || !fi.fmi.m
     throw "ERROR: fi.fmi.metoclient.ui.animator.Controller is required for fi.fmi.metoclient.ui.animator.Animator!";
 }
 
+(function() {
+    var method;
+    var noop = function () {};
+    var methods = [
+        'assert', 'clear', 'count', 'debug', 'dir', 'dirxml', 'error',
+        'exception', 'group', 'groupCollapsed', 'groupEnd', 'info', 'log',
+        'markTimeline', 'profile', 'profileEnd', 'table', 'time', 'timeEnd',
+        'timeStamp', 'trace', 'warn'
+    ];
+    var length = methods.length;
+    var console = (window.console = window.console || {});
+    var productionMode = window.location.search.indexOf("debug=true") === -1;
+
+    while (length--) {
+        method = methods[length];
+
+        if (productionMode) {
+            console[method] = noop;
+        } else {
+            // Only stub undefined methods in debug mode.
+            if (!console[method]) {
+                console[method] = noop;
+            }
+        }
+    }
+}());
+
+
 /**
  * API functions are defined in the end of the constructor as priviledged functions.
  * See API description there.
