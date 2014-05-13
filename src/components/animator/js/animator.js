@@ -314,6 +314,21 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
         }
 
         /**
+         * @return {Date} Date that should be current when the page is loaded
+         */
+        function getInitialDate() {
+            var initialDateConfig = _config.getConfig().initialDate;
+            if (initialDateConfig === undefined ||
+                initialDateConfig === "begin") {
+                return getBeginDate();
+            } else if (initialDateConfig === "end") {
+                return getEndDate();
+            } else if (initialDateConfig === "forecast") {
+                return getForecastBeginDate();
+            }
+        }
+
+        /**
          * @return {Date} Begin date should be gotten from the configuration.
          *                Otherwise, {undefined}.
          */
@@ -1009,7 +1024,7 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
                     setPlayAndPause();
 
                     // Initialize to beginning of period
-                    _timeController.proposeTimeSelectionChange(getBeginDate().getTime());
+                    _timeController.proposeTimeSelectionChange(getInitialDate().getTime());
                 }
             }
         }
