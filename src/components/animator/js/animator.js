@@ -205,7 +205,7 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
                     var _tmpFactory = new fi.fmi.metoclient.ui.animator.Factory2(_config);
 
                     var constraints = _tmpFactory.getConstraints();
-                    var availableRanges = _tmpFactory.getAvailableRanges();
+                    var availableRanges = _tmpFactory.getAvailableRanges(_factory.getLayers());
                     _coordinator.update(constraints, availableRanges);
 
                     _timeController.proposeTimePeriodChange(getBeginDate(), getEndDate(), getResolution());
@@ -253,7 +253,7 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
                 var controllableLayers = _.filter(layers, function(l) {return l.setTime && l.setRange;});
 
                 var constraints = _factory.getConstraints();
-                var availableRanges = _factory.getAvailableRanges();
+                var availableRanges = _factory.getAvailableRanges(layers);
 
                 _coordinator = new OpenLayers.Layer.Animation.LayerGroupCoordinator(controllableLayers, constraints, availableRanges);
 
