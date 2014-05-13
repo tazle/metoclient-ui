@@ -806,37 +806,27 @@ OpenLayers.Layer.Animation.TimedFader = OpenLayers.Class(OpenLayers.Layer.Animat
         //   - visibility can be controlled per-timeline
         //   - layers contains layer ids
         update : function(constraints, availableRanges) {
-            console.log("Available ranges", availableRanges);
             this._constraints = constraints;
-            var restrictedTimesteps = {};
-            var availableTimesteps = {};
-            _.each(availableRanges, function(availableRange, layerId) {
-                availableTimesteps[layerId] = availableRange;
 
+            _.each(this._layers, function(layer, layerId) {
                 // TODO Should get actual timestep value from somewhere
                 var globallyLimitedTimestep = timestep.restricted(constraints.globalRange[0], constraints.globalRange[1], 300000);
                 var rangeGroupId = _.findKey(constraints.rangeGroups, function(rangeGroup) {
-                    return _.contains(rangeGroup.layers, layerId);
+                    return _.contains(rangeGroup.layers, layer.name);
                 });
 
-                var result;
+                var limitedRange;
                 if (rangeGroupId === undefined) {
-                    result = globallyLimitedTimestep;
+                    limitedRange = globallyLimitedTimestep;
                 } else {
-                    result = limitTimestep(globallyLimitedTimestep, constraints.rangeGroups[rangeGroupId].range);
+                    limitedRange = limitTimestep(globallyLimitedTimestep, constraints.rangeGroups[rangeGroupId].range);
                 }
 
-                restrictedTimesteps[layerId] = result;
-            }, this);
-
-            _.each(this._layers, function(layer, layerId) {
-                var limitedRange = restrictedTimesteps[layerId];
-                var availableRange = availableTimesteps[layerId];
+                var availableRange = availableRanges[layerId];
                 if (limitedRange !== undefined && availableRange !== undefined) {
-
                     layer.setRange(limitedRange, availableRange);
                 } else {
-                    throw "Undefined range for layer " + layer.name + ", visible: " + limitedRange + ", available: " + availableRange;
+                    throw "Undefined range for layer " + layer.name + ", available: " + availableRange;
                 }
             });
         },
@@ -1020,6 +1010,7 @@ OpenLayers.Layer.Animation.PreloadAll = OpenLayers.Class(OpenLayers.Layer.Animat
             this._visibilityMap = {}; // whether layer should be visible or not, indexed by ISO 8601 time string
             this._errors = {}; // latest errors of layers, indexed by ISO 8601 time string
             this._opacity = 1.0; // Not available through Layer, store locally
+            this._capabilities = options.capabilities; // URL and layer for capabilities request, may be undefined
 
             this._preloadPolicy = options.preloadPolicy;
             this._retainPolicy = options.retainPolicy;
@@ -1096,7 +1087,7 @@ OpenLayers.Layer.Animation.PreloadAll = OpenLayers.Class(OpenLayers.Layer.Animat
                 console.log("Loading", t);
                 layer = this._layerFactory(t);
                 this.initLayer(layer);
-//                this._visibilityMap[k] = true;
+                this._visibilityMap[k] = true; // Everything is always setVisible to true if the parent layer is, see ILMANET-1014
                 this.reconfigureLayer(layer);
                 this._layers[k] = layer;
             }
@@ -1109,11 +1100,15 @@ OpenLayers.Layer.Animation.PreloadAll = OpenLayers.Class(OpenLayers.Layer.Animat
             }
             //console.log("Request setting of time to", requestedTime, "on", this.name, "range", this.getRange());
             var previousLayer = this._currentLayer;
-            var hidePrevious = _.bind(function() {
-                if (previousLayer !== undefined) {
-                    this.setSubLayerVisibility(previousLayer, false);
-                }
-            }, this);
+
+            // TODO Should hide faded-out layer, but that makes animation ugly, see ILMANET-1014
+            var hidePrevious = function() {};
+            // var hidePrevious = _.bind(function() {
+            //     if (previousLayer !== undefined) {
+            //         this.setSubLayerVisibility(previousLayer, false);
+            //     }
+            // }, this);
+
             var shownTime = this._timeSelector.selectTime(this, requestedTime);
             console.log(requestedTime, "resulted in", shownTime, this.name);
             if (shownTime === undefined) {
@@ -1137,10 +1132,9 @@ OpenLayers.Layer.Animation.PreloadAll = OpenLayers.Class(OpenLayers.Layer.Animat
 
             // TODO Need to track whether fade is in progress? Should not start multiple faders concurrently.
             if (layer !== previousLayer) {
-                this.setSubLayerVisibility(layer, true);
-                setTimeout(_.bind(function() {
-                    this._fader.fade(this, previousLayer, layer, hidePrevious);
-                }, this));
+                // TODO Should set new layer to visible before fading, but that makes animation ugly, see ILMANET-1014
+                // this.setSubLayerVisibility(layer, true);
+                this._fader.fade(this, previousLayer, layer, hidePrevious);
             }
 
             var preloadTimes = this._preloadPolicy.preloadAt(this, shownTime);
@@ -1261,6 +1255,13 @@ OpenLayers.Layer.Animation.PreloadAll = OpenLayers.Class(OpenLayers.Layer.Animat
         getLegendInfo : function() {
             var embeddedLayer = this._layerFactory(new Date());
             return this._legendInfoProvider.provideLegendInfo(embeddedLayer);
+        },
+
+        /**
+         * Get capabilities request information
+         */
+        getCapabilities : function() {
+            return this._capabilities;
         }
     });
 })();
