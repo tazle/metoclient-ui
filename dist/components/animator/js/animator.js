@@ -1403,6 +1403,7 @@ fi.fmi.metoclient.ui.animator.Controller = (function() {
         var _paper;
         var _model;
         var _timeController;
+        var _preloadController;
         var _scaleConfig;
         var _sliderConfig;
 
@@ -1939,6 +1940,22 @@ fi.fmi.metoclient.ui.animator.Controller = (function() {
             return nLoading;
         }
 
+        function getFrameStates() {
+            return _.map(_progressCellSet, function(cell) {
+                var nStarted = cell.data("nStarted");
+                var nComplete = cell.data("nComplete");
+                var state;
+                if (nStarted === 0) {
+                    state = "empty";
+                } else if (nComplete >= nStarted) {
+                    state = "complete";
+                } else {
+                    state = "loading";
+                }
+                return {time : new Date(cell.data("endDate")), state : state};
+            });
+        }
+
         function schedulePause() {
             if (_pauseTimeout === undefined) {
                 // No ongoing pause, schedule one
@@ -2000,8 +2017,9 @@ fi.fmi.metoclient.ui.animator.Controller = (function() {
                     if (nComplete >= nStarted) {
                         cell.attr("fill", nErrors > 0 ? _scaleConfig.cellErrorColor : _scaleConfig.cellReadyColor);
                         if (nFramesLoading() === 0) {
-                            // Loading has stopped, cancel any scheduled animation pause
+                            // Loading has stopped, cancel any scheduled animation pause and initiate preload
                             cancelPause();
+                            _timeController.proposePreload(getFrameStates());
                         }
                         if (nComplete > nStarted) {
                             console.error("BUG? complete: ", nComplete, "started: ", nStarted);
@@ -2157,6 +2175,7 @@ fi.fmi.metoclient.ui.animator.Controller = (function() {
             model.addTimePeriodChangeListener({
                 timePeriodChanged : function(start, end, resolution) {
                     redrawAll();
+                    _timeController.proposePreload(getFrameStates());
                 }
             });
 
@@ -2257,33 +2276,6 @@ if ("undefined" === typeof fi.fmi.metoclient.ui.animator.Factory2 || !fi.fmi.met
 if ("undefined" === typeof fi.fmi.metoclient.ui.animator.Controller || !fi.fmi.metoclient.ui.animator.Controller) {
     throw "ERROR: fi.fmi.metoclient.ui.animator.Controller is required for fi.fmi.metoclient.ui.animator.Animator!";
 }
-
-(function() {
-    var method;
-    var noop = function () {};
-    var methods = [
-        'assert', 'clear', 'count', 'debug', 'dir', 'dirxml', 'error',
-        'exception', 'group', 'groupCollapsed', 'groupEnd', 'info', 'log',
-        'markTimeline', 'profile', 'profileEnd', 'table', 'time', 'timeEnd',
-        'timeStamp', 'trace', 'warn'
-    ];
-    var length = methods.length;
-    var console = (window.console = window.console || {});
-    var productionMode = window.location.search.indexOf("debug=true") === -1;
-
-    while (length--) {
-        method = methods[length];
-
-        if (productionMode) {
-            console[method] = noop;
-        } else {
-            // Only stub undefined methods in debug mode.
-            if (!console[method]) {
-                console[method] = noop;
-            }
-        }
-    }
-}());
 
 
 /**
@@ -2562,6 +2554,21 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
          */
         function getBeginDate() {
             return _config.getAnimationBeginDate();
+        }
+
+        /**
+         * @return {Date} Date that should be current when the page is loaded
+         */
+        function getInitialDate() {
+            var initialDateConfig = _config.getConfig().initialDate;
+            if (initialDateConfig === undefined ||
+                initialDateConfig === "begin") {
+                return getBeginDate();
+            } else if (initialDateConfig === "end") {
+                return getEndDate();
+            } else if (initialDateConfig === "forecast") {
+                return getForecastBeginDate();
+            }
         }
 
         /**
@@ -3236,6 +3243,21 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
                         },
                         proposePause : function() {
                             firePause();
+                        },
+                        proposePreload : function(frameStates) {
+                            var anyLoading = _.any(frameStates, function(state) {
+                                return state.state === "loading";
+                            });
+
+                            if (!anyLoading) {
+                                var firstEmptyState = _.find(frameStates, function(state) {
+                                    return state.state === "empty";
+                                });
+
+                                if (firstEmptyState !== undefined) {
+                                    _coordinator.preload(firstEmptyState.time);
+                                }
+                            }
                         }
                     };
 
@@ -3260,7 +3282,7 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
                     setPlayAndPause();
 
                     // Initialize to beginning of period
-                    _timeController.proposeTimeSelectionChange(getBeginDate().getTime());
+                    _timeController.proposeTimeSelectionChange(getInitialDate().getTime());
                 }
             }
         }
@@ -4420,3 +4442,44 @@ fi.fmi.metoclient.ui.animator.ConfigLoader = (function() {
     // Constructor function for new instantiation.
     return _constructor;
 })();
+
+
+/*
+Copyright (c) 2013-2014 HTML5 Boilerplate, Finnish Meteorological Institute
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+*/
+
+// Avoid `console` errors in browsers that lack a console.
+(function() {
+    var method;
+    var noop = function () {};
+    var methods = [
+        'assert', 'clear', 'count', 'debug', 'dir', 'dirxml', 'error',
+        'exception', 'group', 'groupCollapsed', 'groupEnd', 'info', 'log',
+        'markTimeline', 'profile', 'profileEnd', 'table', 'time', 'timeEnd',
+        'timeStamp', 'trace', 'warn'
+    ];
+    var length = methods.length;
+    var console = (window.console = window.console || {});
+    var productionMode = window.location.search.indexOf("debug=true") === -1;
+
+    while (length--) {
+        method = methods[length];
+
+        if (productionMode) {
+            console[method] = noop;
+        } else {
+            // Only stub undefined methods in debug mode.
+            if (!console[method]) {
+                console[method] = noop;
+            }
+        }
+    }
+}());
+
+// Place any jQuery/helper plugins in here.
