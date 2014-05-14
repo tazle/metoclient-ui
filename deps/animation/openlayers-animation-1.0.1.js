@@ -681,7 +681,7 @@ OpenLayers.Layer.Animation = OpenLayers.Class(OpenLayers.Layer, {
                 layer.setVisibility(visibility);
             });
         },
-        
+
         CLASS_NAME : "OpenLayers.Layer.Animation.ControlLayer"
     });
 })();
@@ -848,6 +848,13 @@ OpenLayers.Layer.Animation.TimedFader = OpenLayers.Class(OpenLayers.Layer.Animat
             _.invoke(this._layers, "setTime", t);
         },
 
+        /**
+         * Call preload on all layers.
+         */
+        preload : function(t) {
+            _.invoke(this._layers, "preload", t);
+        },
+
         
         /**
          * Get timeline names
@@ -945,10 +952,9 @@ OpenLayers.Layer.Animation.PreloadPolicy = OpenLayers.Class({
      * time steps.
      *
      * @param {RangedLayer} layer Layer to decide preload times for
-     * @param {Date} t Time that the layer is set to.
      * @return {Array<Date>} Dates to preload.
      */
-    preloadAt : function(rangedLayer, t) {
+    preloadAt : function(rangedLayer) {
         throw "This is an interface";
     },
 
@@ -958,7 +964,7 @@ OpenLayers.Layer.Animation.PreloadPolicy = OpenLayers.Class({
 OpenLayers.Layer.Animation.PreloadDisabled = OpenLayers.Class(OpenLayers.Layer.Animation.PreloadPolicy, {
     initialize : function() {
     },
-    preloadAt : function(layer, t) {
+    preloadAt : function(layer) {
         return [];
     },
 
@@ -968,7 +974,8 @@ OpenLayers.Layer.Animation.PreloadDisabled = OpenLayers.Class(OpenLayers.Layer.A
 OpenLayers.Layer.Animation.PreloadNext = OpenLayers.Class(OpenLayers.Layer.Animation.PreloadPolicy, {
     initialize : function() {
     },
-    preloadAt : function(layer, t) {
+    preloadAt : function(layer) {
+        var t = layer.getTime();
         var range = layer.getRange();
         var next = range.nextAvailable(t);
         if (next <= t) {
@@ -992,7 +999,8 @@ OpenLayers.Layer.Animation.PreloadNext = OpenLayers.Class(OpenLayers.Layer.Anima
 OpenLayers.Layer.Animation.PreloadAll = OpenLayers.Class(OpenLayers.Layer.Animation.PreloadPolicy, {
     initialize : function() {
     },
-    preloadAt : function(layer, t) {
+    preloadAt : function(layer) {
+        var t = layer.getTime();
         var range = layer.getRange();
         var first = range.startTime();
         var last = range.endTime();
@@ -1016,7 +1024,7 @@ OpenLayers.Layer.Animation.PreloadAll = OpenLayers.Class(OpenLayers.Layer.Animat
         if (!_.isFunction(options.layerFactory)) {
             throw "layerFactory must be a function";
         }
-        var objectProps = ["preloadPolicy", "retainPolicy", "fader", "timeSelector", "legendInfoProvider"];
+        var objectProps = ["retainPolicy", "fader", "timeSelector", "legendInfoProvider"];
         _.each(objectProps, function(propName) {
             if (!_.isObject(options[propName])) {
                 throw (propName +" must be an object");
@@ -1046,7 +1054,6 @@ OpenLayers.Layer.Animation.PreloadAll = OpenLayers.Class(OpenLayers.Layer.Animat
             this._opacity = 1.0; // Not available through Layer, store locally
             this._capabilities = options.capabilities; // URL and layer for capabilities request, may be undefined
 
-            this._preloadPolicy = options.preloadPolicy;
             this._retainPolicy = options.retainPolicy;
             this._fader = options.fader;
             this._timeSelector = options.timeSelector;
@@ -1128,6 +1135,10 @@ OpenLayers.Layer.Animation.PreloadAll = OpenLayers.Class(OpenLayers.Layer.Animat
             return layer;
         },
 
+        preload : function(t) {
+            this.loadLayer(t);
+        },
+
         setTime : function(requestedTime) {
             if (requestedTime === undefined) {
                 throw "Cannot set time of layer " + this.name + " to undefined";
@@ -1170,11 +1181,6 @@ OpenLayers.Layer.Animation.PreloadAll = OpenLayers.Class(OpenLayers.Layer.Animat
                 // this.setSubLayerVisibility(layer, true);
                 this._fader.fade(this, previousLayer, layer, hidePrevious);
             }
-
-            var preloadTimes = this._preloadPolicy.preloadAt(this, shownTime);
-            _.each(preloadTimes, function(preloadTime) {
-                var preloadLayer = this.loadLayer(preloadTime);
-            }, this);
 
         },
 
