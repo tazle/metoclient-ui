@@ -588,6 +588,22 @@ fi.fmi.metoclient.ui.animator.Controller = (function() {
             return nLoading;
         }
 
+        function getFrameStates() {
+            return _.map(_progressCellSet, function(cell) {
+                var nStarted = cell.data("nStarted");
+                var nComplete = cell.data("nComplete");
+                var state;
+                if (nStarted === 0) {
+                    state = "empty";
+                } else if (nComplete >= nStarted) {
+                    state = "complete";
+                } else {
+                    state = "loading";
+                }
+                return {time : new Date(cell.data("endDate")), state : state};
+            });
+        }
+
         function schedulePause() {
             if (_pauseTimeout === undefined) {
                 // No ongoing pause, schedule one
@@ -649,8 +665,9 @@ fi.fmi.metoclient.ui.animator.Controller = (function() {
                     if (nComplete >= nStarted) {
                         cell.attr("fill", nErrors > 0 ? _scaleConfig.cellErrorColor : _scaleConfig.cellReadyColor);
                         if (nFramesLoading() === 0) {
-                            // Loading has stopped, cancel any scheduled animation pause
+                            // Loading has stopped, cancel any scheduled animation pause and initiate preload
                             cancelPause();
+                            _timeController.proposePreload(getFrameStates());
                         }
                         if (nComplete > nStarted) {
                             console.error("BUG? complete: ", nComplete, "started: ", nStarted);
@@ -806,6 +823,7 @@ fi.fmi.metoclient.ui.animator.Controller = (function() {
             model.addTimePeriodChangeListener({
                 timePeriodChanged : function(start, end, resolution) {
                     redrawAll();
+                    _timeController.proposePreload(getFrameStates());
                 }
             });
 

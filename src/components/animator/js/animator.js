@@ -1000,6 +1000,21 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
                         },
                         proposePause : function() {
                             firePause();
+                        },
+                        proposePreload : function(frameStates) {
+                            var anyLoading = _.any(frameStates, function(state) {
+                                return state.state === "loading";
+                            });
+
+                            if (!anyLoading) {
+                                var firstEmptyState = _.find(frameStates, function(state) {
+                                    return state.state === "empty";
+                                });
+
+                                if (firstEmptyState !== undefined) {
+                                    _coordinator.preload(firstEmptyState.time);
+                                }
+                            }
                         }
                     };
 
