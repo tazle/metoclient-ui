@@ -76,6 +76,19 @@ fi.fmi.metoclient.ui.animator = fi.fmi.metoclient.ui.animator || {};
  *    // is floored to the resolution time because future
  *    // data is not requested.
  *    animationDeltaToEndTime : {Integer}
+ *
+ *    // Optional. Should the client do periodic GetCapabilities updates?
+ *    // Disabled by default. If enabled, animator.js periodically updated
+ *    // capability information for layers that have a capabilities element.
+ *    updateCapabilities : {Boolean},
+ *
+ *    // Optional. If present, valid values are "begin", "end" and "forecast".
+ *    // If not present, default is "begin".
+ *    // Controls placement of the slider after initialization. "begin", "end" and
+ *    // "forecast" place slider at the first available step of the timeline, the
+ *    // last available step of the timeline and the first available step of the
+ *    // forecast respectively.
+ *    initialDate  :  {String},
  * }
  */
 fi.fmi.metoclient.ui.animator.Config = {
