@@ -14,10 +14,10 @@ details.
 
 Special handling for animated classes "OpenLayers.Layer.Animation.Wms"
 and "OpenLayers.Layer.Animation.Wmts". They are converted to
-"OpenLayers.Layer.Animation.PreloadingTimedLayers". Other classes are
-instantiated directly. Animation only works for RangedLayer instances,
-which essentially limits animation support to WMS and WMTS using the
-aforementioned configuration classes.
+"OpenLayers.Layer.Animation.PreloadingTimedLayers". Other animated
+classes cause an error. Non-animated classes (classe without
+"animation" parameter in one of its arguments) are instantiated
+directly.
 
 Removed support for "fadeIn", "fadeOut", "maxAsyncLoadCount" and
 "autoLoad" parameters in animation configurations. Fading was deemed
