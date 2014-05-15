@@ -402,10 +402,10 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
             var observationLayers = [];
             var forecastLayers = [];
 
-            _constraints["rangeGroups"]["observation"] = {range: [_configLoader.getAnimationBeginDate(), _configLoader.getObservationEndDate()], layers: observationLayers};
-            _constraints["rangeGroups"]["forecast"] = {range: [_configLoader.getForecastBeginDate(), _configLoader.getAnimationEndDate()], layers: forecastLayers};
+            _constraints["rangeGroups"]["observation"] = {range: [_configLoader.getAnimationBeginDate(), _configLoader.getForecastBeginDate()], layers: observationLayers};
+            _constraints["rangeGroups"]["forecast"] = {range: [new Date(_configLoader.getForecastBeginDate().getTime() + 1), _configLoader.getAnimationEndDate()], layers: forecastLayers};
 
-            var haveForecast = _configLoader.getObservationEndDate().getTime() !== _configLoader.getAnimationEndDate().getTime();
+            var haveForecast = _configLoader.getForecastBeginDate().getTime() !== _configLoader.getAnimationEndDate().getTime();
 
             function processConfig() {
                 // Create layers only if layers have not been created before.
