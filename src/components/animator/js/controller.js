@@ -192,6 +192,18 @@ fi.fmi.metoclient.ui.animator.Controller = (function() {
             return Math.floor(_scaleContainer.getBBox().height);
         }
 
+        function getCellWidth() {
+            var resolution = getResolution();
+            if (resolution) {
+                var begin = getStartTime();
+                var end = getEndTime();
+                var cellCount = Math.floor((end - begin) / resolution);
+                return getScaleAreaWidth() / cellCount;
+            } else {
+                return 0;
+            }
+        }
+
         function getTimeScale() {
             return _model && getScaleAreaWidth() ? (_model.getEndTime() - _model.getStartTime()) / getScaleAreaWidth() : 1;
         }
@@ -306,7 +318,7 @@ fi.fmi.metoclient.ui.animator.Controller = (function() {
         function moveSliderTo(x) {
             var delta = Math.round(x - getSliderTipOffsetX());
             var scaleX = getScaleAreaOffsetX();
-            if (delta && x >= scaleX && x <= scaleX + getScaleAreaWidth()) {
+            if (delta && x >= (scaleX + Math.floor(getCellWidth())) && x <= scaleX + getScaleAreaWidth()) {
                 transformSliderElements(delta);
                 resetSliderLabelText();
                 resetHotSpots();
@@ -455,7 +467,7 @@ fi.fmi.metoclient.ui.animator.Controller = (function() {
                 var beginX = getScaleAreaX();
                 var beginY = getScaleAreaY() + getScaleAreaHeight() - _scaleConfig.progressCellHeight - 1;
                 var cellCount = Math.floor((end - begin) / resolution);
-                var cellWidth = getScaleAreaWidth() / cellCount;
+                var cellWidth = getCellWidth();
                 for (var i = 0; i < cellCount; ++i) {
                     var cellStart = begin + i * resolution;
                     var cellEnd = begin + (i+1) * resolution;

@@ -320,7 +320,7 @@ fi.fmi.metoclient.ui.animator.Animator = (function() {
             var initialDateConfig = _config.getConfig().initialDate;
             if (initialDateConfig === undefined ||
                 initialDateConfig === "begin") {
-                return getBeginDate();
+                return new Date(getBeginDate().getTime() + getResolution());
             } else if (initialDateConfig === "end") {
                 return getEndDate();
             } else if (initialDateConfig === "forecast") {
