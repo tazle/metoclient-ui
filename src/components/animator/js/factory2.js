@@ -292,7 +292,47 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
             }
 
             function fillWmtsDefaults(args) {
-                // TODO Implement
+                var topLeftCorners = {
+                    "ETRS-TM35FIN-FINLAND:0" : new OpenLayers.LonLat(-118331.366408356,8432773.0),
+                    "ETRS-TM35FIN-FINLAND:1" : new OpenLayers.LonLat(-118331.366408356,8432773.0),
+                    "ETRS-TM35FIN-FINLAND:2" : new OpenLayers.LonLat(-118331.366408356,7908485.0),
+                    "ETRS-TM35FIN-FINLAND:3" : new OpenLayers.LonLat(-118331.366408356,7908485.0),
+                    "ETRS-TM35FIN-FINLAND:4" : new OpenLayers.LonLat(-118331.366408356,7908485.0),
+                    "ETRS-TM35FIN-FINLAND:5" : new OpenLayers.LonLat(-118331.366408356,7908485.0),
+                    "ETRS-TM35FIN-FINLAND:6" : new OpenLayers.LonLat(-118331.366408356,7908485.0),
+                    "ETRS-TM35FIN-FINLAND:7" : new OpenLayers.LonLat(-118331.366408356,7908485.0),
+                    "ETRS-TM35FIN-FINLAND:8" : new OpenLayers.LonLat(-118331.366408356,7908485.0),
+                    "ETRS-TM35FIN-FINLAND:9" : new OpenLayers.LonLat(-118331.366408356,7908485.0),
+                    "ETRS-TM35FIN-FINLAND:10" : new OpenLayers.LonLat(-118331.366408356,7908485.0),
+                    "ETRS-TM35FIN-FINLAND:11" : new OpenLayers.LonLat(-118331.366408356,7908485.0),
+                    "ETRS-TM35FIN-FINLAND:12" : new OpenLayers.LonLat(-118331.366408356,7907973.0),
+                    "ETRS-TM35FIN-FINLAND:13" : new OpenLayers.LonLat(-118331.366408356,7907973.0)
+                };
+
+                function createMatrixIds(matrixSetName) {
+                    // TODO Unhack, currently assumes fixed range of ids and fixed scheme for creating ids - should use capabilities info instead
+                    var result = [];
+                    for (var i = 0; i < 14; i++) {
+                        var identifier = matrixSetName + ":" + i;
+                        result.push({identifier : identifier,
+                                     scaleDenominator : Math.pow(2,13-i) * (1/28e-5),
+                                     topLeftCorner : topLeftCorners[identifier],
+                                    });
+                    }
+                    return result;
+                }
+
+                // WMTS default params
+                var defaultParams = {
+                    format: "image/png",
+                    displayInLayerSwitcher : false,
+                    isBaseLayer : false,
+                    matrixIds : createMatrixIds(args[0].matrixSet)
+                };
+
+                var params = _.extend(defaultParams, args[0]);
+
+                args[0] = params;
             }
 
             function fillWmsDefaults(args) {
@@ -346,14 +386,53 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
                             return undefined;
                         }
 
-                        return createLayer(klass, name, args, legendInfoProvider, {layer: subLayer.layer, url: layerConf.capabilities.url});
+                        return createLayer(klass, name, args, legendInfoProvider, options.animation, {layer: subLayer.layer, url: layerConf.capabilities.url});
                     });
                     return layers[0];
                 }
             }
 
             function createWmtsSubLayer(layerConf) {
-                // TODO Implement
+                var klass = OpenLayers.Layer.Animation.TimedLayerClassWrapper(OpenLayers.Layer.WMTS, {
+                    timeSetter: OpenLayers.Layer.Animation.TimedLayerClassWrapper.mergeParams
+                });
+
+                var parentAnimation = findAnimation(layerConf.args);
+                var parentConfig = layerConf.args[0];
+                var parentName = parentConfig.name;
+                var subLayers = parentAnimation.layers;
+                if (subLayers !== undefined && subLayers.length > 0) {
+                    console.log("Found subLayers for layer", parentName);
+                    var layers = _.map(subLayers, function(subLayer) {
+                        var name = subLayer.name;
+                        if (name === undefined) {
+                            // TODO ILMANET-1015: Generate name or forbid configurations without name for sublayers?
+                            // Currently generated name
+                            name = parentName + "_" + subLayer.layer;
+                        }
+                        var config = {
+                            url : parentConfig.url,
+                            layer : subLayer.layer,
+                            style : subLayer.style ? subLayer.style : parentConfig.style,
+                            matrixSet : subLayer.matrixSet ? subLayer.matrixSet : parentConfig.matrixSet,
+                            maxExtent : subLayer.maxExtent ? subLayer.maxExtent : parentConfig.maxExtent,
+                            animation : _.pick(subLayer, ["beginTime", "endTime", "resolutionTime", "hasLegend", "isForecast"])
+                        };
+                        fillOutAnimation(config.animation);
+                        console.log("Filled-out animation config for layer", name, config.animation);
+                        var legendInfoProvider = createLegendInfoProvider(config.animation);
+                        var args = [config];
+                        fillWmtsDefaults(args);
+
+                        if (config.animation.isForecast && !haveForecast) {
+                            // ILMANET-1016 fix, don't generate forecast layers if there is no forecast range
+                            return undefined;
+                        }
+
+                        return createLayer(klass, name, args, legendInfoProvider, config.animation, {layer: config.layer, url: layerConf.capabilities.url});
+                    });
+                    return layers[0];
+                }
             }
 
             function createLegendInfoProvider(animation) {
