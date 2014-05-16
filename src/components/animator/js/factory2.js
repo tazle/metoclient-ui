@@ -365,10 +365,8 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
                 }
             }
 
-            function createLayer(klass, name, args, legendInfoProvider, capabilities) {
+            function createLayer(klass, name, args, legendInfoProvider, animation, capabilities) {
                 var layerFactory = layerFactoryFor(klass, args);
-
-                var animation = args[3].animation;
 
                 var layer = new OpenLayers.Layer.Animation.PreloadingTimedLayer(name, {
                     "layerFactory" : layerFactory,
@@ -428,21 +426,23 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
                                 // Interpret legacy layer names and create corresponding wrappers
                                 var klass;
                                 var subLayer;
+                                var layerName;
                                 if (config.className.indexOf("OpenLayers.Layer.Animation.Wms") === 0) {
                                     // WMS case
                                     klass = OpenLayers.Layer.Animation.TimedLayerClassWrapper(OpenLayers.Layer.WMS, {
                                         timeSetter: OpenLayers.Layer.Animation.TimedLayerClassWrapper.mergeParams
                                     });
 
+                                    layerName = config.args[0];
                                     fillWmsDefaults(config.args);
                                     subLayer = createWmsSubLayer(config);
-                                } else if (config.className.indexOf("OpenLayers.Layer.Animation.Wms") === 0) {
+                                } else if (config.className.indexOf("OpenLayers.Layer.Animation.Wmts") === 0) {
                                     // WMTS case
-                                    // TODO Default configuration
                                     klass = OpenLayers.Layer.Animation.TimedLayerClassWrapper(OpenLayers.Layer.WMTS, {
                                         timeSetter: OpenLayers.Layer.Animation.TimedLayerClassWrapper.mergeParams
                                     });
 
+                                    layerName = config.args[0].name;
                                     fillWmtsDefaults(config.args);
                                     subLayer = createWmtsSubLayer(config);
                                 } else {
@@ -452,8 +452,7 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
 
                                 var legendInfoProvider = createLegendInfoProvider(animation);
 
-                                // TODO Hack, asssume args[0] is layer name
-                                var mainLayer = createLayer(klass, config.args[0], config.args, legendInfoProvider, config.capabilities);
+                                var mainLayer = createLayer(klass, layerName, config.args, legendInfoProvider, animation, config.capabilities);
 
                                 _layers.push(mainLayer);
                                 _constraints.timelines[mainLayer.name] = [mainLayer];
