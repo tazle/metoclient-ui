@@ -241,9 +241,8 @@ fi.fmi.metoclient.ui.animator.Factory2 = (function() {
 
             function layerFactoryFor(klass, args) {
                 return function(t) {
-                    // TODO Hack, expects that args[0] is layer name
-                    var new_name_args = [args[0] + Math.random()].concat(args.slice(1));
-                    var layer = new (constructorWrapper(klass, new_name_args))();
+                    console.log("Creating layer with args", args);
+                    var layer = new (constructorWrapper(klass, args))();
                     layer.setTime(t);
                     return layer;
                 };
